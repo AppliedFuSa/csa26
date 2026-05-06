@@ -11,17 +11,31 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     CSA26_CPPCHECK_ADDONS_DIR=/usr/share/cppcheck/addons
 
-# Cppcheck inklusive MISRA-Addon. Das Debian-Paket legt misra.py unter
-# /usr/share/cppcheck/addons/ ab — der Wrapper sucht es genau dort.
+# Cppcheck via apt. Das Addon-Skript misra.py ist im aktuellen Debian-
+# trixie-Paket (cppcheck 2.17.1) NICHT mit ausgeliefert — wir holen es
+# version-synchron aus dem Cppcheck-Upstream-Repo. Damit hängen Tool und
+# Addon nicht an Debian-Paketier-Entscheidungen.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
         cppcheck \
         ca-certificates \
+        curl \
  && rm -rf /var/lib/apt/lists/*
 
-# Sanity-Check beim Build: Cppcheck-Binary und MISRA-Addon vorhanden?
-RUN cppcheck --version \
- && test -f "${CSA26_CPPCHECK_ADDONS_DIR}/misra.py"
+# addons/-Verzeichnis passend zur installierten Cppcheck-Version laden.
+# Wir nehmen das ganze Verzeichnis (statt nur misra.py), weil misra.py
+# auf cppcheckdata.py und ggf. weitere Addon-Helper angewiesen ist.
+# Tags im Upstream-Repo haben kein „v"-Prefix („2.17.1", nicht „v2.17.1").
+RUN set -eu; \
+    CPPCHECK_VERSION="$(cppcheck --version | awk '{print $2}')"; \
+    echo "Cppcheck $CPPCHECK_VERSION → addons/ @ tag $CPPCHECK_VERSION"; \
+    mkdir -p "${CSA26_CPPCHECK_ADDONS_DIR}"; \
+    curl -sSfL \
+        "https://codeload.github.com/danmar/cppcheck/tar.gz/refs/tags/${CPPCHECK_VERSION}" \
+      | tar -xz --strip-components=2 -C "${CSA26_CPPCHECK_ADDONS_DIR}" \
+            "cppcheck-${CPPCHECK_VERSION}/addons"; \
+    test -s "${CSA26_CPPCHECK_ADDONS_DIR}/misra.py"; \
+    test -s "${CSA26_CPPCHECK_ADDONS_DIR}/cppcheckdata.py"
 
 # Wrapper-Code installieren
 COPY pyproject.toml /opt/csa26/
