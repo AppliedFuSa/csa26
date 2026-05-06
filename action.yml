@@ -1,0 +1,44 @@
+name: 'csa26 — MISRA-C:2012 Pre-Audit'
+description: 'Runs Cppcheck with the MISRA addon on your C sources and reports findings as job summary, inline annotations, and SARIF.'
+author: 'Applied FuSa / Wolfgang Freese'
+branding:
+  icon: 'shield'
+  color: 'blue'
+
+inputs:
+  src-dir:
+    description: 'Directory in the checked-out repository to analyse.'
+    required: false
+    default: '.'
+  rule-set:
+    description: 'Rule set to check against. Currently only "misra-c-2012" is supported.'
+    required: false
+    default: 'misra-c-2012'
+  severity-threshold:
+    description: 'Minimum Cppcheck severity to report. One of: error, warning, style, performance, portability, information.'
+    required: false
+    default: 'style'
+  fail-on-findings:
+    description: 'If "true", the action exits non-zero when at least one finding is reported. Default "false" — findings are surfaced but do not break the build.'
+    required: false
+    default: 'false'
+  sarif-output:
+    description: 'Path (relative to the workspace) where the SARIF file is written.'
+    required: false
+    default: 'csa26.sarif'
+
+outputs:
+  sarif-file:
+    description: 'Absolute path to the generated SARIF file.'
+  finding-count:
+    description: 'Total number of findings at or above the severity threshold.'
+
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+  env:
+    CSA26_SRC_DIR: ${{ inputs.src-dir }}
+    CSA26_RULE_SET: ${{ inputs.rule-set }}
+    CSA26_SEVERITY_THRESHOLD: ${{ inputs.severity-threshold }}
+    CSA26_FAIL_ON_FINDINGS: ${{ inputs.fail-on-findings }}
+    CSA26_SARIF_OUTPUT: ${{ inputs.sarif-output }}

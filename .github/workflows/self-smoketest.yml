@@ -1,0 +1,44 @@
+name: self-smoketest
+
+# Lässt csa26 gegen sich selbst und gegen das eingecheckte
+# `tests/fixtures/c-sample/`-Verzeichnis laufen — als End-to-End-Check,
+# dass action.yml + Dockerfile + Wrapper-Code zusammenspielen.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  smoketest-on-fixture:
+    name: csa26 → eigene Fixture
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run csa26 on tests/fixtures/c-sample
+        id: csa26
+        uses: ./
+        with:
+          src-dir: tests/fixtures/c-sample
+          severity-threshold: style
+          fail-on-findings: 'false'
+          sarif-output: csa26-fixture.sarif
+
+      - name: SARIF artefact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: csa26-fixture-sarif
+          path: csa26-fixture.sarif
+
+      - name: Sanity-Check — Fixture muss Findings produzieren
+        run: |
+          if [ "${{ steps.csa26.outputs.finding-count }}" = "0" ]; then
+            echo "::error::Fixture sollte MISRA-Findings produzieren — bekommen 0."
+            exit 1
+          fi
+          echo "csa26 fand ${{ steps.csa26.outputs.finding-count }} Findings in der Fixture."
