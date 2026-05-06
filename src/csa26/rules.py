@@ -117,7 +117,14 @@ def _parse_rule_file(canonical_id: str, path: Path) -> RuleDescription:
 
 
 def _first_paragraph(body: str) -> str:
+    """Erster Markdown-Absatz, mit Hard-Wraps zu Leerzeichen kollabiert.
+
+    Markdown erlaubt Zeilenumbrüche im selben Absatz, die rein zur
+    Quell-Lesbarkeit dienen. Annotations, SARIF und Job Summary wollen
+    dagegen einen Fließtext — interne `\\n` würden eine GitHub-Annotation
+    zerschießen oder im SARIF als Hardbreaks landen.
+    """
     paragraphs = [p.strip() for p in body.strip().split("\n\n") if p.strip()]
     if not paragraphs:
         return ""
-    return paragraphs[0]
+    return " ".join(paragraphs[0].split())

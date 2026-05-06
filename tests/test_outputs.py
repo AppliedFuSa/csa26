@@ -87,6 +87,15 @@ def test_format_annotation_uses_error_level_for_error():
     assert line.startswith("::error ")
 
 
+def test_format_annotation_prefixes_message_with_rule_id():
+    """Reviewer im PR muss am Annotation-Text direkt erkennen, welche
+    Regel das war — `title=`-Property wird in vielen UI-Stellen nicht
+    angezeigt, der sichtbare Text dahinter dagegen immer."""
+    line = format_annotation(_finding(), _rule())
+    body = line.split("::", 2)[2]
+    assert body.startswith("[misra-c2012-8.13] ")
+
+
 def test_format_annotation_escapes_commas_in_path():
     finding = _finding(file="src/odd,name.c")
     line = format_annotation(finding, _rule())

@@ -42,3 +42,16 @@ jobs:
             exit 1
           fi
           echo "csa26 fand ${{ steps.csa26.outputs.finding-count }} Findings in der Fixture."
+
+      - name: Sanity-Check — nur MISRA-IDs im SARIF
+        run: |
+          python3 - <<'PY'
+          import json, sys
+          sarif = json.loads(open("csa26-fixture.sarif").read())
+          rule_ids = sorted({r["ruleId"] for r in sarif["runs"][0]["results"]})
+          non_misra = [rid for rid in rule_ids if not rid.startswith("misra-")]
+          print("rule ids:", rule_ids)
+          if non_misra:
+              print(f"::error::SARIF enthält Nicht-MISRA-IDs: {non_misra}")
+              sys.exit(1)
+          PY

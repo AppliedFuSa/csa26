@@ -157,6 +157,12 @@ Liste mit dem konkreten Mapping pflegen wir unter
 werden auch von csa26 nicht abgedeckt; dort ergänzt typischerweise
 Cppcheck Premium oder eine Enterprise-Suite.
 
+**csa26 zeigt nur MISRA-Findings an.** Cppcheck-Built-in-Befunde
+wie `nullPointer`, `constParameterPointer` oder `uninitvar` werden
+verworfen — sie haben in einem MISRA-Pre-Audit nichts zu suchen, und
+csa26 hat dafür auch keine eigene Regel-Beschreibung. Wenn Sie diese
+Befunde brauchen, ist Cppcheck direkt das passendere Tool.
+
 In v0.1 werden Findings mit Rule-IDs und einer kurzen eigenen
 Paraphrase ausgegeben; der Ausbau der pro-Regel-Beschreibungen läuft
 parallel und kommt mit v0.2 in vollem Umfang.

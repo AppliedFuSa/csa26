@@ -65,6 +65,18 @@ def _truthy(value: str) -> bool:
     return (value or "").strip().lower() in {"1", "true", "yes", "on"}
 
 
+def filter_misra_only(findings: list[Finding]) -> tuple[list[Finding], int]:
+    """Behält nur MISRA-Findings, zählt Cppcheck-Built-ins als gedroppt.
+
+    csa26 ist ein gezieltes MISRA-C:2012-Pre-Audit. Cppcheck-Built-in-
+    Findings (z.B. `nullPointer`, `constParameterPointer`) sind in diesem
+    Tool Rauschen, weil wir keine eigene Regel-Beschreibung dafür haben
+    und der Reviewer nicht erwartet, sie hier zu sehen.
+    """
+    misra = [f for f in findings if f.is_misra]
+    return misra, len(findings) - len(misra)
+
+
 def main(argv: list[str] | None = None) -> int:  # noqa: ARG001
     config = Config.from_env(dict(os.environ))
 
@@ -92,9 +104,16 @@ def main(argv: list[str] | None = None) -> int:  # noqa: ARG001
         return run.returncode or 3
 
     findings = parse_cppcheck_xml(xml_path)
+    misra_findings, dropped_non_misra = filter_misra_only(findings)
+    if dropped_non_misra:
+        sys.stdout.write(
+            f"csa26: dropping {dropped_non_misra} non-MISRA cppcheck "
+            "finding(s) (csa26 is a MISRA-C:2012 pre-audit tool).\n"
+        )
+
     filtered = [
         finding
-        for finding in findings
+        for finding in misra_findings
         if finding.severity.at_least_as_severe_as(config.severity_threshold)
     ]
     filtered = [_relativize(finding, config.workspace) for finding in filtered]

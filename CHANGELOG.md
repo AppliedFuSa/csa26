@@ -7,6 +7,20 @@ Versionen folgen [Semver](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Changed
+
+- Findings ohne MISRA-Prefix (Cppcheck-Built-ins wie `nullPointer`,
+  `constParameterPointer`) werden vor dem Severity-Filter verworfen.
+  csa26 ist gezielt MISRA-Pre-Audit; Cppcheck-eigene Checks gehören
+  ins Cppcheck-Originaltool. Die Anzahl der gedroppten Findings wird
+  im Action-Log gemeldet.
+- Annotation-Message beginnt mit `[<rule-id>]`-Prefix, damit Reviewer
+  im PR-Diff die verletzte Regel sofort sehen — das `title=`-Property
+  alleine wird in vielen GitHub-UI-Stellen nicht angezeigt.
+- Hard-Wraps innerhalb des ersten Markdown-Absatzes von Regel-Dateien
+  werden zu Leerzeichen kollabiert. Verhindert mehrzeilige
+  Annotations und Hardbreaks im SARIF.
+
 ### Added
 
 - Bootstrap des Repos: `LICENSE` (Apache-2.0), `NOTICE` (MISRA-Disclaimer +

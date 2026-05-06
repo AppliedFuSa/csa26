@@ -163,7 +163,11 @@ def write_annotations(
 def format_annotation(finding: Finding, rule: RuleDescription) -> str:
     level = _annotation_level(finding.severity)
     title = f"{rule.title} [{finding.rule_id}]"
-    message = rule.description or finding.message or rule.title
+    body = rule.description or finding.message or rule.title
+    # Rule-ID prominent vorne, damit ein Reviewer im PR-Diff direkt sieht,
+    # welche Regel verletzt wurde — das title=-Property wird in vielen
+    # GitHub-UI-Stellen nicht angezeigt.
+    message = f"[{finding.rule_id}] {body}"
     parts = [f"file={_escape_property(finding.file)}"]
     if finding.line > 0:
         parts.append(f"line={finding.line}")

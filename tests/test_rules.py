@@ -57,3 +57,17 @@ def test_lookup_rule_without_frontmatter_uses_first_paragraph(tmp_path):
     assert rule.description == "Erster Absatz als Beschreibung."
     # Default-Titel aus Rule-Nummer
     assert "2.7" in rule.title
+
+
+def test_lookup_rule_flattens_hard_wraps_in_first_paragraph(tmp_path):
+    """Hard-Wrap-Zeilenumbrüche im selben Absatz dürfen nicht in der
+    Description landen — sonst zerschießen sie GitHub-Annotations."""
+    target = tmp_path / "c2012" / "8.13.md"
+    target.parent.mkdir(parents=True)
+    target.write_text(
+        "Erster Satz mit\nHard-Wrap, der\n  mehrfach umbricht.\n\nZweiter Absatz.\n",
+        encoding="utf-8",
+    )
+    rule = lookup_rule("c2012-8.13", rules_dir=tmp_path)
+    assert "\n" not in rule.description
+    assert rule.description == "Erster Satz mit Hard-Wrap, der mehrfach umbricht."
