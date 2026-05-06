@@ -1,0 +1,24 @@
+csa26 — C Static Analysis ISO 26262
+Copyright 2026 Wolfgang Freese / Applied FuSa
+
+This product includes software developed by Wolfgang Freese
+(https://appliedfusa.de) and is licensed under the Apache License,
+Version 2.0 (see LICENSE).
+
+csa26 wraps the open-source static analyzer Cppcheck
+(https://cppcheck.sourceforge.io/) and uses its MISRA addon for
+checking against MISRA-C:2012 coding guidelines. Cppcheck is
+distributed separately under the GNU General Public License v3.0.
+
+MISRA and MISRA C are registered trademarks of The MISRA Consortium
+Limited (https://misra.org.uk/). csa26 is not affiliated with,
+endorsed by, or certified by The MISRA Consortium. References to
+MISRA-C:2012 in csa26 documentation, output, and marketing are
+factual descriptions of the rule set being checked (nominative fair
+use). The verbatim text of MISRA rules is not redistributed by csa26;
+rule descriptions in csa26 output are independent paraphrases written
+by the csa26 maintainers.
+
+csa26 is a pre-audit tool. It does not constitute a formal
+compliance assessment against MISRA-C:2012. Formal compliance
+certification remains the responsibility of the user's safety manager.
