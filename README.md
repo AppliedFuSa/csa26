@@ -182,6 +182,13 @@ verworfen — sie haben in einem MISRA-Pre-Audit nichts zu suchen, und
 csa26 hat dafür auch keine eigene Regel-Beschreibung. Wenn Sie diese
 Befunde brauchen, ist Cppcheck direkt das passendere Tool.
 
+**Strukturelle Coverage-Grenze.** Nicht jede MISRA-Guideline lässt
+sich von einem statischen Analyse-Tool prüfen. Etwa 25–30% der 159
+MISRA-C:2012-Guidelines (alle Directives, einige Compiler-spezifische
+Rules, alle undecidable Rules) sind außerhalb dessen, was csa26 oder
+ein vergleichbares Tool prinzipiell leisten kann. Details und
+Klassifikation: [`docs/coverage.md`](docs/coverage.md).
+
 In v0.1 werden Findings mit Rule-IDs und einer kurzen eigenen
 Paraphrase ausgegeben; der Ausbau der pro-Regel-Beschreibungen läuft
 parallel und kommt mit v0.2 in vollem Umfang.
