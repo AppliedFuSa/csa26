@@ -1,0 +1,107 @@
+name: release
+
+# Tag-getriggert: bei jedem `vX.Y.Z`-Tag bauen wir das Container-Image
+# nach ghcr und legen einen passenden Major-Branch (`v0`, `v1`, …) an,
+# der eine angepasste action.yml enthält. Endkunden pinnen `@vN` und
+# ziehen damit das gepushte Image — kein 5–10-Minuten-Build pro Lauf.
+
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag zum erneuten Releasen (z.B. v0.1.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write   # Push auf vN-Branch
+  packages: write   # Push nach ghcr
+
+env:
+  IMAGE: ghcr.io/appliedfusa/csa26
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      major-branch: ${{ steps.version.outputs.major-branch }}
+      ref: ${{ steps.version.outputs.ref }}
+    steps:
+      - name: Resolve ref
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            REF="${{ inputs.tag }}"
+          else
+            REF="${GITHUB_REF_NAME}"
+          fi
+          VERSION="${REF#v}"
+          MAJOR_BRANCH="v${VERSION%%.*}"
+          {
+            echo "ref=${REF}"
+            echo "version=${VERSION}"
+            echo "major-branch=${MAJOR_BRANCH}"
+          } >> "$GITHUB_OUTPUT"
+          echo "Releasing $REF → image $IMAGE:$VERSION + branch $MAJOR_BRANCH"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.version.outputs.ref }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to ghcr
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ steps.version.outputs.version }}
+            ${{ env.IMAGE }}:${{ steps.version.outputs.major-branch }}
+            ${{ env.IMAGE }}:latest
+
+  publish-major-branch:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.build-and-push.outputs.ref }}
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+
+      - name: Patch action.yml to use ghcr image
+        env:
+          IMAGE: ${{ env.IMAGE }}
+          MAJOR: ${{ needs.build-and-push.outputs.major-branch }}
+        run: |
+          sed -i "s|image: 'Dockerfile'|image: 'docker://${IMAGE}:${MAJOR}'|" action.yml
+          if ! grep -q "docker://${IMAGE}:${MAJOR}" action.yml; then
+            echo "::error::action.yml was not patched — does it still contain image: 'Dockerfile'?"
+            exit 1
+          fi
+
+      - name: Commit and push major branch
+        env:
+          MAJOR: ${{ needs.build-and-push.outputs.major-branch }}
+          VERSION: ${{ needs.build-and-push.outputs.version }}
+        run: |
+          git checkout -B "$MAJOR"
+          git add action.yml
+          git commit -m "release: action.yml uses ghcr image $MAJOR (from v$VERSION)"
+          git push -f origin "$MAJOR"

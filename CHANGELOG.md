@@ -7,50 +7,42 @@ Versionen folgen [Semver](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
-### Added
+## [0.1.0] — 2026-05-07
 
-- Action-Inputs `include-paths`, `defines`, `undefines` (newline-separierte
-  Listen). Pflicht für realen Embedded-C, der gegen Vendor-SDKs gebaut
-  wird — ohne Header- und Define-Setup kann cppcheck reale Codebases
-  nicht voll parsen, und das MISRA-Addon liefert Falsch-Negative.
-  Pfade werden gegen das Workspace-Root aufgelöst, Defines/Undefines
-  werden roh an cppcheck weitergegeben.
-
-### Changed
-
-- Findings ohne MISRA-Prefix (Cppcheck-Built-ins wie `nullPointer`,
-  `constParameterPointer`) werden vor dem Severity-Filter verworfen.
-  csa26 ist gezielt MISRA-Pre-Audit; Cppcheck-eigene Checks gehören
-  ins Cppcheck-Originaltool. Die Anzahl der gedroppten Findings wird
-  im Action-Log gemeldet.
-- Annotation-Message beginnt mit `[<rule-id>]`-Prefix, damit Reviewer
-  im PR-Diff die verletzte Regel sofort sehen — das `title=`-Property
-  alleine wird in vielen GitHub-UI-Stellen nicht angezeigt.
-- Hard-Wraps innerhalb des ersten Markdown-Absatzes von Regel-Dateien
-  werden zu Leerzeichen kollabiert. Verhindert mehrzeilige
-  Annotations und Hardbreaks im SARIF.
+Erste öffentliche Version. Public-Repo, Apache-2.0, GitHub-Action-
+Distribution. Phase-1-Prototyp für Konzept-Validierung.
 
 ### Added
 
 - Bootstrap des Repos: `LICENSE` (Apache-2.0), `NOTICE` (MISRA-Disclaimer +
-  Pre-Audit-Abgrenzung), `HANDOVER.md` (übergangsweise).
+  Pre-Audit-Abgrenzung).
 - `action.yml` als GitHub-Docker-Action mit Inputs `src-dir`,
-  `rule-set`, `severity-threshold`, `fail-on-findings`, `sarif-output`
-  und Outputs `sarif-file`, `finding-count`.
-- `Dockerfile` auf Basis `python:3.12-slim` mit Cppcheck + MISRA-Addon.
-- Python-Wrapper unter `src/csa26/`: Cppcheck-Aufruf, XML-Parsing,
-  drei Outputs (Job Summary, Inline-Annotations, SARIF 2.1.0).
-- Pflege-Asset für eigene Regel-Paraphrasen unter `rules/c2012/`
-  (Format-Spec + zwei Beispiele für 8.13 und 2.7).
-- Pytest-Test-Suite (Severity-Ordering, XML-Parser, SARIF-Builder,
-  Annotation-Format, Rules-Lookup, Config-Defaults).
-- CI-Workflows: `test` (Lint + Pytest + Image-Build) und
-  `self-smoketest` (csa26 läuft gegen die eingebaute C-Fixture).
-- `docs/smoketest.md` mit Drei-Ebenen-Smoketest-Konzept.
-
-## [0.1.0] — geplant
-
-Erste öffentliche Version. Marketplace-Listing-Einreichung folgt.
+  `rule-set`, `severity-threshold`, `fail-on-findings`, `sarif-output`,
+  `include-paths`, `defines`, `undefines` und Outputs `sarif-file`,
+  `finding-count`. Newline-separierte Multiline-Inputs für reale
+  Vendor-SDK-Setups.
+- `Dockerfile` auf Basis `python:3.12-slim` mit Cppcheck (apt) und dem
+  passenden Addons-Tarball aus dem Cppcheck-Upstream-Repo, version-
+  synchron zur installierten Cppcheck-Version.
+- Python-Wrapper unter `src/csa26/`: Cppcheck-Aufruf, XML-Parsing, drei
+  Outputs (Job Summary, Inline-Annotations, SARIF 2.1.0).
+- MISRA-only-Filterung: Cppcheck-Built-in-Findings (`nullPointer`,
+  `constParameterPointer`, …) werden verworfen. csa26 ist gezielt
+  MISRA-Pre-Audit.
+- Annotation-Message beginnt mit `[<rule-id>]`-Prefix, damit Reviewer
+  im PR-Diff die Regel sofort sehen.
+- Hard-Wraps in Regel-Markdown-Dateien werden zu Leerzeichen
+  kollabiert (verhindert mehrzeilige Annotations).
+- Pflege-Asset für eigene Regel-Paraphrasen unter `rules/c2012/` (Format-
+  Spec + zwei Beispiele für 8.13 und 2.7).
+- Pytest-Test-Suite mit 40 Tests (Severity-Ordering, XML-Parser,
+  Cppcheck-Args, SARIF-Builder, Annotation-Format, Rules-Lookup,
+  Config-Defaults inkl. Multiline-Inputs, MISRA-Filter).
+- CI-Workflows: `test` (Lint + Pytest + Image-Build), `self-smoketest`
+  (csa26 läuft gegen die eingebaute C-Fixture mit SARIF-IDs-Check),
+  `release` (tag-getriggert: ghcr-Image-Build und vN-Branch-Patch).
+- `docs/smoketest.md` mit Drei-Ebenen-Smoketest-Konzept,
+  `docs/release.md` mit Tag-Prozedur.
 
 [Unreleased]: https://github.com/AppliedFuSa/csa26/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/AppliedFuSa/csa26/releases/tag/v0.1.0
