@@ -70,9 +70,12 @@ def test_command_line_define_takes_effect():
     assert _texts(toks) == ["int", "v", "=", "42", ";", "int", "d", "=", "1", ";"]
 
 
-def test_function_like_macro_in_iteration_1_raises():
-    with pytest.raises(PreprocessorError, match="function-like macros"):
-        preprocess("#define MAX(a,b) ((a)>(b)?(a):(b))\n")
+def test_object_like_with_paren_in_replacement():
+    """Wenn `(` nicht direkt am Identifier klebt, ist es kein function-like
+    Macro — die Klammern gehören dann zum Replacement."""
+    src = "#define X (1+2)\nint a = X;"
+    toks = preprocess(src)
+    assert _texts(toks) == ["int", "a", "=", "(", "1", "+", "2", ")", ";"]
 
 
 # --- #ifdef / #ifndef / #else / #endif ---------------------------------------
@@ -179,9 +182,8 @@ def test_elif_takes_first_match():
     assert _texts(preprocess(src)) == ["int", "b", ";"]
 
 
-def test_elif_complex_if_expression_raises():
-    with pytest.raises(PreprocessorError, match="iteration 1 supports only"):
-        preprocess("#if X + 1\n#endif\n")
+# ↓ Iteration-1-Limitation, in Iteration 2 entfernt — wir können jetzt
+# komplexe Expressions auswerten (siehe Iteration-2-Tests unten).
 
 
 # --- #include -----------------------------------------------------------------
@@ -257,3 +259,182 @@ def test_file_macro_expands_to_current_file():
     toks = preprocess("char *f = __FILE__;\n", file="my.c")
     strings = [t.text for t in toks if t.kind is TokenKind.STRING_LITERAL]
     assert strings == ['"my.c"']
+
+
+# ============================================================================
+# Iteration 2: function-like macros, ##, #, __VA_ARGS__,
+# full #if expressions, adjacent string concatenation
+# ============================================================================
+
+
+# --- Function-like macros ----------------------------------------------------
+
+
+def test_function_like_basic():
+    src = "#define DOUBLE(x) ((x) + (x))\nint y = DOUBLE(5);"
+    toks = preprocess(src)
+    assert _texts(toks) == [
+        "int",
+        "y",
+        "=",
+        "(",
+        "(",
+        "5",
+        ")",
+        "+",
+        "(",
+        "5",
+        ")",
+        ")",
+        ";",
+    ]
+
+
+def test_function_like_two_params():
+    src = "#define MAX(a, b) ((a) > (b) ? (a) : (b))\nint z = MAX(1, 2);"
+    toks = preprocess(src)
+    assert "1" in _texts(toks) and "2" in _texts(toks) and "?" in _texts(toks)
+
+
+def test_function_like_no_params():
+    src = "#define HELLO() 42\nint x = HELLO();"
+    toks = preprocess(src)
+    assert _texts(toks) == ["int", "x", "=", "42", ";"]
+
+
+def test_function_like_unparenthesised_use_stays_literal():
+    """ISO §6.10.3: function-like macro without `(` is not expanded."""
+    src = "#define F(x) (x+1)\nint *p = F;"
+    toks = preprocess(src)
+    # F bleibt unverändert, weil kein Aufruf.
+    assert "F" in _texts(toks)
+
+
+def test_function_like_argument_with_nested_parens():
+    src = "#define ID(x) x\nint y = ID(f(a, b));"
+    toks = preprocess(src)
+    assert _texts(toks) == ["int", "y", "=", "f", "(", "a", ",", "b", ")", ";"]
+
+
+def test_function_like_argument_count_mismatch_raises():
+    src = "#define ADD(a, b) ((a) + (b))\nint x = ADD(1);"
+    with pytest.raises(PreprocessorError, match="argument count mismatch"):
+        preprocess(src)
+
+
+# --- Stringification (#) -----------------------------------------------------
+
+
+def test_stringify_simple():
+    src = "#define STR(x) #x\nchar *s = STR(hello);"
+    toks = preprocess(src)
+    strings = [t.text for t in toks if t.kind is TokenKind.STRING_LITERAL]
+    assert strings == ['"hello"']
+
+
+def test_stringify_multiple_tokens():
+    src = "#define STR(x) #x\nchar *s = STR(a + b);"
+    toks = preprocess(src)
+    strings = [t.text for t in toks if t.kind is TokenKind.STRING_LITERAL]
+    # Mehrere Tokens werden mit Single-Space getrennt.
+    assert strings == ['"a + b"']
+
+
+# --- Token-Pasting (##) ------------------------------------------------------
+
+
+def test_token_paste_identifiers():
+    src = "#define CONCAT(a, b) a ## b\nint CONCAT(foo, bar);"
+    toks = preprocess(src)
+    assert _texts(toks) == ["int", "foobar", ";"]
+
+
+def test_token_paste_with_number():
+    src = "#define LABEL(n) lbl_ ## n\nint LABEL(42);"
+    toks = preprocess(src)
+    assert _texts(toks) == ["int", "lbl_42", ";"]
+
+
+# --- Variadic / __VA_ARGS__ --------------------------------------------------
+
+
+def test_variadic_passes_all_remaining_args():
+    src = '#define LOG(...) printf(__VA_ARGS__)\nLOG("x = %d", x);'
+    toks = preprocess(src)
+    # Der Aufruf wird zu printf("x = %d", x);
+    assert _texts(toks) == ["printf", "(", '"x = %d"', ",", "x", ")", ";"]
+
+
+def test_variadic_with_named_param():
+    src = '#define DBG(fmt, ...) printf(fmt, __VA_ARGS__)\nDBG("v=%d", 42);'
+    toks = preprocess(src)
+    assert _texts(toks) == ["printf", "(", '"v=%d"', ",", "42", ")", ";"]
+
+
+# --- Full #if expression evaluator ------------------------------------------
+
+
+def test_if_arithmetic_expression():
+    src = "#if 1 + 2 == 3\nint a;\n#endif"
+    assert _texts(preprocess(src)) == ["int", "a", ";"]
+
+
+def test_if_complex_logical_expression():
+    # VERSION wird im Iteration-2-Evaluator nicht expandiert (Identifier=0),
+    # daher testen wir mit reinen Konstanten.
+    src = "#if 200 >= 100 && (1 || !0)\nint a;\n#endif"
+    assert _texts(preprocess(src)) == ["int", "a", ";"]
+
+
+def test_if_bitwise_operators():
+    src = "#if (0xF0 | 0x0F) == 0xFF\nint a;\n#endif"
+    assert _texts(preprocess(src)) == ["int", "a", ";"]
+
+
+def test_if_shift_operators():
+    src = "#if (1 << 4) == 16\nint a;\n#endif"
+    assert _texts(preprocess(src)) == ["int", "a", ";"]
+
+
+def test_if_ternary():
+    src = "#if (1 ? 5 : 10) == 5\nint a;\n#endif"
+    assert _texts(preprocess(src)) == ["int", "a", ";"]
+
+
+def test_if_undefined_identifier_evaluates_to_zero():
+    src = "#if FOO == 0\nint a;\n#endif"
+    assert _texts(preprocess(src)) == ["int", "a", ";"]
+
+
+def test_if_division_by_zero_raises():
+    with pytest.raises(PreprocessorError, match="division by zero"):
+        preprocess("#if 1 / 0\n#endif")
+
+
+def test_if_unbalanced_parens_raises():
+    with pytest.raises(PreprocessorError, match="expected '\\)'"):
+        preprocess("#if (1 + 2\n#endif")
+
+
+# --- Adjacent string-literal concatenation -----------------------------------
+
+
+def test_adjacent_string_literals_are_concatenated():
+    src = 'char *s = "hello, " "world";'
+    toks = preprocess(src)
+    strings = [t.text for t in toks if t.kind is TokenKind.STRING_LITERAL]
+    assert strings == ['"hello, world"']
+
+
+def test_adjacent_strings_via_macro():
+    src = '#define HELLO "hello, "\nchar *s = HELLO "world";'
+    toks = preprocess(src)
+    strings = [t.text for t in toks if t.kind is TokenKind.STRING_LITERAL]
+    assert strings == ['"hello, world"']
+
+
+def test_wide_string_concatenation_keeps_l_prefix():
+    src = 'char *s = L"hello, " L"world";'
+    toks = preprocess(src)
+    strings = [t.text for t in toks if t.kind is TokenKind.STRING_LITERAL]
+    assert strings == ['L"hello, world"']

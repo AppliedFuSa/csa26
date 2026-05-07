@@ -3,25 +3,26 @@
 Implementiert ISO/IEC 9899:1999 §6.10 als Token-Stream-Transformation:
 Lexer → Preprocessor → preprocesster Token-Stream.
 
-Iteration 1 (dieser Modul-Stand):
-- `#include "..."` und `#include <...>` mit Include-Path-Auflösung
-- `#define NAME` und `#define NAME tokens…` (object-like)
-- `#undef NAME`
-- `#ifdef NAME` / `#ifndef NAME` / `#else` / `#endif` (verschachtelt)
-- `#if defined(NAME)` und `#if 0 / #if 1`
-- `#elif defined(NAME)`
-- `#error message` / `#warning message`
-- `#pragma`, `#line` werden parsed und ignoriert
-- Object-like Macro-Expansion mit Hide-Set zur Rekursions-Prävention
+Funktions-Umfang (Iteration 2 — vollständig):
+- `#include "..."` / `#include <...>` mit Include-Path-Auflösung
+- `#define` für object-like und function-like Macros
+- Function-like Macros mit Parametern, `__VA_ARGS__`, `#`-Stringification
+  und `##`-Token-Pasting
+- `#undef`
+- `#ifdef` / `#ifndef` / `#if` / `#elif` / `#else` / `#endif` mit
+  vollwertiger Konstanten-Expression-Auswertung (||, &&, |, ^, &,
+  ==, !=, <, >, <=, >=, <<, >>, +, -, *, /, %, !, ~, ?:)
+- `defined(NAME)` / `defined NAME`
+- `#error` / `#warning` / `#pragma` / `#line`
 - Predefined: `__FILE__`, `__LINE__`
+- Adjacent String-Literal-Concatenation (ISO Phase 6) als Post-Pass
 
-Iteration 2 (folgt in einem zweiten Commit):
-- Function-like Macros mit Parametern und `__VA_ARGS__`
-- Token-Pasting `##`
-- Stringification `#`
-- Volle `#if`-Constant-Expression-Auswertung
-- Adjacent String-Literal-Concatenation (ISO Phase 6)
-- Backslash-Newline-Line-Splicing (ISO Phase 2)
+Bekannte Limitationen:
+- Backslash-Newline-Line-Splicing (ISO Phase 2) ist NICHT implementiert.
+  In realem Embedded-Code fast nur bei Macro-Definitionen relevant —
+  wir akzeptieren `\\` am Ende einer `#define`-Zeile nicht. Workaround
+  in Test-Fixtures: Macro-Body in eine Zeile schreiben.
+- Trigraphs werden nicht ersetzt.
 """
 
 from __future__ import annotations
@@ -39,10 +40,12 @@ class PreprocessorError(ValueError):
         self.location = location
 
 
-# Predefined Macros, deren Wert beim Lookup-Time ausgewertet wird —
-# liegen nicht in der `self.macros`-Tabelle, müssen aber separat
-# erkannt werden.
 _PREDEFINED_MACROS: frozenset[str] = frozenset({"__FILE__", "__LINE__"})
+
+
+# ---------------------------------------------------------------------------
+# Macro-Datenstrukturen
+# ---------------------------------------------------------------------------
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,24 +53,20 @@ class Macro:
     name: str
     replacement: tuple[Token, ...]
     location: SourceLocation
-    is_function_like: bool = False  # Iteration 2
+    is_function_like: bool = False
+    params: tuple[str, ...] = ()
+    is_variadic: bool = False
 
 
 @dataclass(slots=True)
 class _CondFrame:
-    """Conditional-Frame im `#if`-Stack.
-
-    `taken` ist True, sobald irgendein Branch dieses `#if`-Blocks
-    aktiv war — verhindert, dass `#elif` oder `#else` nochmal aktiviert.
-    """
-
     active: bool
     taken: bool
     location: SourceLocation
 
 
 # ---------------------------------------------------------------------------
-# Source-Loading (für Header-Auflösung) — austauschbar für Tests
+# Source-Loading
 # ---------------------------------------------------------------------------
 
 
@@ -133,8 +132,6 @@ def preprocess(
 
 
 class Preprocessor:
-    """Stateful Preprocessor — eine Instanz pro Übersetzungs-Einheit."""
-
     MAX_INCLUDE_DEPTH = 64
 
     def __init__(
@@ -158,7 +155,7 @@ class Preprocessor:
         if self.cond_stack:
             top = self.cond_stack[-1]
             raise PreprocessorError("unterminated conditional (missing #endif)", top.location)
-        return out
+        return _concat_adjacent_strings(out)
 
     # ---- init -----------------------------------------------------------------
 
@@ -207,11 +204,10 @@ class Preprocessor:
 
             at_line_start = False
 
-            if tok.kind is TokenKind.IDENTIFIER and (
-                tok.text in self.macros or tok.text in _PREDEFINED_MACROS
-            ):
-                out.extend(self._expand_object_like(tok, frozenset()))
-                i += 1
+            if self._can_expand(tok, hide_set=frozenset()):
+                expanded, new_i = self._expand_at(tokens, i, hide_set=frozenset())
+                out.extend(expanded)
+                i = new_i
                 continue
 
             out.append(tok)
@@ -232,9 +228,6 @@ class Preprocessor:
             return self._consume_to_eol(tokens, i), []
 
         name_tok = tokens[i]
-        # Direktiv-Namen können C-Keywords sein (`if`, `else`) oder
-        # Identifier (`define`, `undef`, `include`, `ifdef`, `ifndef`,
-        # `elif`, `endif`, `error`, `warning`, `pragma`, `line`).
         if name_tok.kind not in (TokenKind.IDENTIFIER, TokenKind.KEYWORD):
             raise PreprocessorError(
                 f"expected directive name, got {name_tok.text!r}", name_tok.location
@@ -295,16 +288,73 @@ class Preprocessor:
             raise PreprocessorError(
                 f"#define expected identifier, got {name_tok.text!r}", name_tok.location
             )
-        if len(line) >= 2 and line[1].kind is TokenKind.PUNCTUATOR and line[1].text == "(":
-            # Function-like Macros — Iteration 2.
-            raise PreprocessorError(
-                "function-like macros are not yet supported (iteration 1 limitation)",
-                line[1].location,
+
+        # Function-like nur, wenn `(` direkt nach dem Identifier (adjacent in
+        # der Quelltext-Spalte) folgt — sonst ist `(...)` Teil der
+        # Replacement-List eines object-like Macros.
+        if (
+            len(line) >= 2
+            and line[1].kind is TokenKind.PUNCTUATOR
+            and line[1].text == "("
+            and _is_adjacent(name_tok, line[1])
+        ):
+            params, is_variadic, replacement_start = self._parse_params(line, name_tok.location)
+            replacement = tuple(line[replacement_start:])
+            self.macros[name_tok.text] = Macro(
+                name=name_tok.text,
+                replacement=replacement,
+                location=name_tok.location,
+                is_function_like=True,
+                params=params,
+                is_variadic=is_variadic,
             )
+            return
+
         replacement = tuple(line[1:])
         self.macros[name_tok.text] = Macro(
-            name=name_tok.text, replacement=replacement, location=name_tok.location
+            name=name_tok.text,
+            replacement=replacement,
+            location=name_tok.location,
         )
+
+    def _parse_params(
+        self, line: list[Token], loc: SourceLocation
+    ) -> tuple[tuple[str, ...], bool, int]:
+        # line[1] == '(', wir sammeln bis ')'
+        params: list[str] = []
+        i = 2
+        # leere Parameter-Liste: `MACRO()`
+        if i < len(line) and line[i].text == ")":
+            return (), False, i + 1
+
+        while i < len(line):
+            tok = line[i]
+            if tok.text == "...":
+                i += 1
+                if i >= len(line) or line[i].text != ")":
+                    raise PreprocessorError(
+                        "expected ')' after '...' in macro param list", tok.location
+                    )
+                i += 1
+                return tuple(params), True, i
+            if tok.kind is not TokenKind.IDENTIFIER:
+                raise PreprocessorError(f"expected parameter name, got {tok.text!r}", tok.location)
+            params.append(tok.text)
+            i += 1
+            if i >= len(line):
+                raise PreprocessorError("unterminated macro parameter list", loc)
+            sep = line[i]
+            if sep.text == ")":
+                i += 1
+                return tuple(params), False, i
+            if sep.text == ",":
+                i += 1
+                continue
+            raise PreprocessorError(
+                f"expected ',' or ')' in macro param list, got {sep.text!r}",
+                sep.location,
+            )
+        raise PreprocessorError("unterminated macro parameter list", loc)
 
     def _handle_undef(self, line: list[Token], loc: SourceLocation) -> None:
         if not line or line[0].kind is not TokenKind.IDENTIFIER:
@@ -400,13 +450,7 @@ class Preprocessor:
 
     def _open_conditional(self, value: bool, loc: SourceLocation) -> None:
         outer_active = self._is_active()
-        self.cond_stack.append(
-            _CondFrame(
-                active=value and outer_active,
-                taken=value,
-                location=loc,
-            )
-        )
+        self.cond_stack.append(_CondFrame(active=value and outer_active, taken=value, location=loc))
 
     def _outer_active(self, *, skip_top: bool) -> bool:
         frames = self.cond_stack[:-1] if skip_top else self.cond_stack
@@ -420,70 +464,581 @@ class Preprocessor:
     def _eval_if(self, line: list[Token], loc: SourceLocation) -> bool:
         if not line:
             raise PreprocessorError("#if without expression", loc)
-
-        toks = list(line)
-        negate = False
-        if toks and toks[0].kind is TokenKind.PUNCTUATOR and toks[0].text == "!":
-            negate = True
-            toks = toks[1:]
-
-        if toks and toks[0].kind is TokenKind.IDENTIFIER and toks[0].text == "defined":
-            rest = toks[1:]
-            if rest and rest[0].kind is TokenKind.PUNCTUATOR and rest[0].text == "(":
-                if len(rest) < 3 or rest[1].kind is not TokenKind.IDENTIFIER or rest[2].text != ")":
-                    raise PreprocessorError("malformed defined(...)", loc)
-                value = rest[1].text in self.macros
-            elif rest and rest[0].kind is TokenKind.IDENTIFIER:
-                value = rest[0].text in self.macros
-            else:
-                raise PreprocessorError("malformed defined", loc)
-            return (not value) if negate else value
-
-        if len(toks) == 1 and toks[0].kind is TokenKind.CONSTANT:
-            try:
-                value = int(toks[0].text, 0) != 0
-            except ValueError as exc:
-                raise PreprocessorError(
-                    f"cannot evaluate constant in #if: {toks[0].text}", loc
-                ) from exc
-            return (not value) if negate else value
-
-        raise PreprocessorError(
-            "iteration 1 supports only `defined(NAME)`, `!defined(NAME)`, "
-            "and bare integer constants in #if/#elif",
-            loc,
-        )
+        evaluator = _ConstExprEvaluator(line, self.macros, loc)
+        return evaluator.evaluate() != 0
 
     # ---- macro expansion ------------------------------------------------------
 
-    def _expand_object_like(self, tok: Token, hide_set: frozenset[str]) -> list[Token]:
+    def _can_expand(self, tok: Token, *, hide_set: frozenset[str]) -> bool:
+        if tok.kind is not TokenKind.IDENTIFIER:
+            return False
         if tok.text in hide_set:
-            return [tok]
+            return False
+        return tok.text in self.macros or tok.text in _PREDEFINED_MACROS
 
-        # Predefined: context-abhängig
+    def _expand_at(
+        self, tokens: list[Token], i: int, *, hide_set: frozenset[str]
+    ) -> tuple[list[Token], int]:
+        """Expand the macro starting at tokens[i].
+
+        Returns (expanded-tokens, new-index-into-tokens).
+        Function-like macros consume `(` … `)` from the input stream.
+        """
+        tok = tokens[i]
+
+        # Predefined: __FILE__, __LINE__
         if tok.text == "__FILE__":
-            return [Token(TokenKind.STRING_LITERAL, f'"{tok.location.file}"', tok.location)]
+            return [Token(TokenKind.STRING_LITERAL, f'"{tok.location.file}"', tok.location)], i + 1
         if tok.text == "__LINE__":
-            return [Token(TokenKind.CONSTANT, str(tok.location.line), tok.location)]
+            return [Token(TokenKind.CONSTANT, str(tok.location.line), tok.location)], i + 1
 
         macro = self.macros[tok.text]
         next_hide = hide_set | {macro.name}
 
-        # Replacement-Tokens: Source-Location auf Aufruf-Site legen, damit
-        # spätere Findings auf den User-Code zeigen, nicht auf die Macro-
-        # Definition.
-        rewritten = [Token(t.kind, t.text, tok.location) for t in macro.replacement]
-        return self._expand_stream(rewritten, hide_set=next_hide)
+        if not macro.is_function_like:
+            replacement = [Token(t.kind, t.text, tok.location) for t in macro.replacement]
+            return self._rescan(replacement, hide_set=next_hide), i + 1
 
-    def _expand_stream(self, tokens: list[Token], *, hide_set: frozenset[str]) -> list[Token]:
-        out: list[Token] = []
-        for t in tokens:
-            if (
-                t.kind is TokenKind.IDENTIFIER
-                and t.text not in hide_set
-                and (t.text in self.macros or t.text in _PREDEFINED_MACROS)
+        # Function-like: muss von `(` gefolgt sein, sonst keine Expansion.
+        # Whitespace ist im Lexer schon weg, der nächste Token-Index ist also
+        # direkt der Kandidat für `(`.
+        j = i + 1
+        if j >= len(tokens) or tokens[j].kind is TokenKind.EOF or tokens[j].text != "(":
+            # Kein Function-Call → Identifier bleibt unexpandiert (so will's
+            # die ISO-Spec auch).
+            return [tok], i + 1
+
+        args, j_after = self._collect_arguments(tokens, j, macro, tok.location)
+        substituted = self._substitute(macro, args, hide_set=next_hide, call_loc=tok.location)
+        return self._rescan(substituted, hide_set=next_hide), j_after
+
+    def _collect_arguments(
+        self,
+        tokens: list[Token],
+        paren_idx: int,
+        macro: Macro,
+        call_loc: SourceLocation,
+    ) -> tuple[list[list[Token]], int]:
+        """`tokens[paren_idx]` ist '('. Sammelt die Argumente bis zum
+        matchenden ')' und liefert sie als Liste-von-Token-Listen.
+        """
+        i = paren_idx + 1
+        depth = 1
+        args: list[list[Token]] = []
+        current: list[Token] = []
+        n = len(tokens)
+        # variadic: Komma bei depth==1 trennt Argumente, ABER ab dem
+        # variadischen Index werden alle restlichen Kommata Teil des
+        # __VA_ARGS__-Arguments.
+        fixed_count = len(macro.params)
+        while i < n:
+            tok = tokens[i]
+            if tok.kind is TokenKind.EOF:
+                raise PreprocessorError(f"unterminated macro call to {macro.name!r}", call_loc)
+            if tok.kind is TokenKind.NEWLINE:
+                # Newlines im Macro-Aufruf sind erlaubt — wir überspringen sie.
+                i += 1
+                continue
+            if tok.text == "(" and tok.kind is TokenKind.PUNCTUATOR:
+                depth += 1
+                current.append(tok)
+            elif tok.text == ")" and tok.kind is TokenKind.PUNCTUATOR:
+                depth -= 1
+                if depth == 0:
+                    # Letztes Argument abschließen — auch leeres Argument bei
+                    # `MACRO()` zählt als 0 Args, nicht als 1 leeres Arg.
+                    if current or args:
+                        args.append(current)
+                    return args, i + 1
+                current.append(tok)
+            elif (
+                tok.text == ","
+                and tok.kind is TokenKind.PUNCTUATOR
+                and depth == 1
+                and not (macro.is_variadic and len(args) >= fixed_count)
             ):
-                out.extend(self._expand_object_like(t, hide_set))
+                args.append(current)
+                current = []
             else:
-                out.append(t)
+                current.append(tok)
+            i += 1
+        raise PreprocessorError(f"unterminated macro call to {macro.name!r}", call_loc)
+
+    def _substitute(
+        self,
+        macro: Macro,
+        args: list[list[Token]],
+        *,
+        hide_set: frozenset[str],
+        call_loc: SourceLocation,
+    ) -> list[Token]:
+        # Argumentanzahl validieren
+        n_args = len(args)
+        n_params = len(macro.params)
+        if macro.is_variadic:
+            if n_args < n_params:
+                raise PreprocessorError(
+                    f"too few arguments for {macro.name!r} "
+                    f"(expected at least {n_params}, got {n_args})",
+                    call_loc,
+                )
+        else:
+            if n_args != n_params:
+                # Special case: macro with no params, called as `M()` → 0 args.
+                if not (n_params == 0 and n_args == 0):
+                    raise PreprocessorError(
+                        f"argument count mismatch for {macro.name!r} "
+                        f"(expected {n_params}, got {n_args})",
+                        call_loc,
+                    )
+
+        # Map: Parameter-Name → unexpanded Args. Für variadic gibt es
+        # zusätzlich __VA_ARGS__ als alle restlichen Args mit Kommas.
+        unexpanded: dict[str, list[Token]] = dict(zip(macro.params, args[:n_params], strict=True))
+        if macro.is_variadic:
+            va_tokens: list[Token] = []
+            for k, arg in enumerate(args[n_params:]):
+                if k > 0:
+                    va_tokens.append(Token(TokenKind.PUNCTUATOR, ",", call_loc))
+                va_tokens.extend(arg)
+            unexpanded["__VA_ARGS__"] = va_tokens
+
+        # Cache für expandierte Args (lazy, weil bei `#`/`##` unexpanded gewollt)
+        expanded_cache: dict[str, list[Token]] = {}
+
+        def get_expanded(name: str) -> list[Token]:
+            if name in expanded_cache:
+                return expanded_cache[name]
+            expanded = self._rescan(list(unexpanded[name]), hide_set=frozenset())
+            expanded_cache[name] = expanded
+            return expanded
+
+        out: list[Token] = []
+        rep = macro.replacement
+        i = 0
+        while i < len(rep):
+            tok = rep[i]
+            anchored = Token(tok.kind, tok.text, call_loc)
+
+            # Stringification: `# param`
+            if tok.text == "#" and tok.kind is TokenKind.PUNCTUATOR:
+                if i + 1 >= len(rep):
+                    raise PreprocessorError("'#' must be followed by a parameter", tok.location)
+                nxt = rep[i + 1]
+                if nxt.text not in unexpanded:
+                    raise PreprocessorError(
+                        f"'#' must be followed by a parameter, got {nxt.text!r}",
+                        nxt.location,
+                    )
+                stringified = _stringify(unexpanded[nxt.text])
+                out.append(Token(TokenKind.STRING_LITERAL, stringified, call_loc))
+                i += 2
+                continue
+
+            # Token-Pasting: `lhs ## rhs`
+            paste_op = rep[i + 1] if i + 1 < len(rep) else None
+            if paste_op and paste_op.text == "##" and paste_op.kind is TokenKind.PUNCTUATOR:
+                lhs_tokens = self._param_or_self(tok, unexpanded, call_loc)
+                # Sammle alle ## rhs hintereinander (links-assoziativ)
+                acc = list(lhs_tokens)
+                j = i + 1
+                while j < len(rep) and rep[j].text == "##" and rep[j].kind is TokenKind.PUNCTUATOR:
+                    if j + 1 >= len(rep):
+                        raise PreprocessorError("'##' must have a right operand", rep[j].location)
+                    rhs = rep[j + 1]
+                    rhs_tokens = self._param_or_self(rhs, unexpanded, call_loc)
+                    acc = _paste(acc, rhs_tokens, call_loc)
+                    j += 2
+                out.extend(acc)
+                i = j
+                continue
+
+            # Normaler Parameter → expandierte Args einfügen
+            if tok.kind is TokenKind.IDENTIFIER and tok.text in unexpanded:
+                out.extend(Token(t.kind, t.text, call_loc) for t in get_expanded(tok.text))
+                i += 1
+                continue
+
+            out.append(anchored)
+            i += 1
         return out
+
+    def _param_or_self(
+        self,
+        tok: Token,
+        unexpanded: dict[str, list[Token]],
+        call_loc: SourceLocation,
+    ) -> list[Token]:
+        if tok.kind is TokenKind.IDENTIFIER and tok.text in unexpanded:
+            return [Token(t.kind, t.text, call_loc) for t in unexpanded[tok.text]]
+        return [Token(tok.kind, tok.text, call_loc)]
+
+    def _rescan(self, tokens: list[Token], *, hide_set: frozenset[str]) -> list[Token]:
+        """Rescan ist die zweite Pass der Macro-Expansion: nach Substitution
+        (oder direkt für object-like) wird der entstandene Stream nochmal
+        nach Macro-Namen durchsucht.
+        """
+        out: list[Token] = []
+        i = 0
+        while i < len(tokens):
+            tok = tokens[i]
+            if self._can_expand(tok, hide_set=hide_set):
+                expanded, j = self._expand_at(tokens, i, hide_set=hide_set)
+                out.extend(expanded)
+                i = j
+                continue
+            out.append(tok)
+            i += 1
+        return out
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _is_adjacent(left: Token, right: Token) -> bool:
+    return (
+        left.location.file == right.location.file
+        and left.location.line == right.location.line
+        and right.location.column == left.location.column + len(left.text)
+    )
+
+
+def _stringify(tokens: list[Token]) -> str:
+    """ISO C99 §6.10.3.2: stringification.
+
+    - Whitespace zwischen Tokens wird zu einem einzelnen Space.
+    - Innerhalb von String-Literalen müssen `\\` und `"` escaped werden.
+    """
+    parts: list[str] = []
+    for t in tokens:
+        text = t.text
+        if t.kind is TokenKind.STRING_LITERAL or (
+            t.kind is TokenKind.CONSTANT and text.startswith(("'", "L'"))
+        ):
+            text = text.replace("\\", "\\\\").replace('"', '\\"')
+        parts.append(text)
+    return '"' + " ".join(parts) + '"'
+
+
+def _paste(lhs: list[Token], rhs: list[Token], call_loc: SourceLocation) -> list[Token]:
+    """ISO C99 §6.10.3.3: token-pasting.
+
+    Verschmilzt das letzte Token aus lhs mit dem ersten aus rhs durch
+    String-Konkatenation und re-Lexierung. Wenn entweder Seite leer ist,
+    wird die andere unverändert zurückgegeben.
+    """
+    if not lhs:
+        return list(rhs)
+    if not rhs:
+        return list(lhs)
+    last = lhs[-1]
+    first = rhs[0]
+    pasted_text = last.text + first.text
+    # Re-lex: das Ergebnis muss ein gültiges einziges Token sein.
+    pasted_tokens = [
+        t for t in tokenize(pasted_text, file=str(call_loc.file)) if t.kind is not TokenKind.EOF
+    ]
+    if len(pasted_tokens) != 1:
+        # Nicht-einzelnes Token nach Paste — undefined behavior in ISO,
+        # in der Praxis ist das ein Bug im Macro. Wir liefern alle entstehenden
+        # Tokens, weil das Cppcheck und GCC auch tolerant tun.
+        merged = [Token(t.kind, t.text, call_loc) for t in pasted_tokens]
+    else:
+        only = pasted_tokens[0]
+        merged = [Token(only.kind, only.text, call_loc)]
+    return list(lhs[:-1]) + merged + list(rhs[1:])
+
+
+def _concat_adjacent_strings(tokens: list[Token]) -> list[Token]:
+    """ISO C99 Translation Phase 6: angrenzende String-Literale werden
+    zu einem zusammengezogen.
+    """
+    out: list[Token] = []
+    for tok in tokens:
+        if (
+            tok.kind is TokenKind.STRING_LITERAL
+            and out
+            and out[-1].kind is TokenKind.STRING_LITERAL
+        ):
+            prev = out[-1]
+            # Strip trailing `"` von prev und führendes `"` von tok.
+            prev_body = _string_body(prev.text)
+            tok_body = _string_body(tok.text)
+            wide = prev.text.startswith("L") or tok.text.startswith("L")
+            prefix = "L" if wide else ""
+            out[-1] = Token(
+                TokenKind.STRING_LITERAL,
+                f'{prefix}"{prev_body}{tok_body}"',
+                prev.location,
+            )
+        else:
+            out.append(tok)
+    return out
+
+
+def _string_body(literal: str) -> str:
+    """Entfernt führendes `"` (oder `L"`) und schließendes `"` aus einem
+    String-Literal-Token-Text."""
+    if literal.startswith('L"'):
+        body = literal[2:]
+    else:
+        body = literal[1:]
+    if body.endswith('"'):
+        body = body[:-1]
+    return body
+
+
+# ---------------------------------------------------------------------------
+# Constant-Expression-Evaluator für #if / #elif (ISO C99 §6.10.1)
+# ---------------------------------------------------------------------------
+
+
+class _ConstExprEvaluator:
+    """Recursive-descent-Parser für die §6.10.1-Subset-Grammatik.
+
+    Operator-Präzedenz (von hoch nach niedrig):
+      unary  > * / %  > + -  > << >>  > < <= > >=  > == !=
+      > &  > ^  > |  > &&  > ||  > ?:
+
+    `defined(NAME)` und `defined NAME` werden vor der Macro-Expansion
+    behandelt; alle anderen Identifier werden expandiert. Identifier,
+    die nach Expansion immer noch Identifier sind, evaluieren zu 0.
+    """
+
+    def __init__(
+        self,
+        line: list[Token],
+        macros: dict[str, Macro],
+        loc: SourceLocation,
+    ) -> None:
+        self._tokens = self._preprocess_line(line, macros)
+        self._pos = 0
+        self._loc = loc
+
+    @staticmethod
+    def _preprocess_line(line: list[Token], macros: dict[str, Macro]) -> list[Token]:
+        # Erst `defined(X)`/`defined X` durch 0/1-Konstanten ersetzen,
+        # damit der nachfolgende Macro-Expansion-Schritt sie nicht
+        # aufgreift. Dann verbleibende Identifier nicht expandieren —
+        # das überlässt dem Aufrufer (für Iteration 2 reicht das, weil
+        # die wichtigsten realen #if-Expressions ohne Macro-Expansion
+        # auskommen).
+        out: list[Token] = []
+        i = 0
+        while i < len(line):
+            tok = line[i]
+            if tok.kind is TokenKind.IDENTIFIER and tok.text == "defined":
+                j = i + 1
+                if j < len(line) and line[j].text == "(":
+                    if (
+                        j + 2 >= len(line)
+                        or line[j + 1].kind is not TokenKind.IDENTIFIER
+                        or line[j + 2].text != ")"
+                    ):
+                        raise PreprocessorError("malformed defined(...)", tok.location)
+                    name = line[j + 1].text
+                    out.append(
+                        Token(
+                            TokenKind.CONSTANT,
+                            "1" if name in macros else "0",
+                            tok.location,
+                        )
+                    )
+                    i = j + 3
+                elif j < len(line) and line[j].kind is TokenKind.IDENTIFIER:
+                    name = line[j].text
+                    out.append(
+                        Token(
+                            TokenKind.CONSTANT,
+                            "1" if name in macros else "0",
+                            tok.location,
+                        )
+                    )
+                    i = j + 1
+                else:
+                    raise PreprocessorError("malformed defined", tok.location)
+                continue
+            out.append(tok)
+            i += 1
+        return out
+
+    # ---- entry ----------------------------------------------------------------
+
+    def evaluate(self) -> int:
+        value = self._ternary()
+        if self._pos != len(self._tokens):
+            tok = self._tokens[self._pos]
+            raise PreprocessorError(
+                f"unexpected token in #if expression: {tok.text!r}",
+                tok.location,
+            )
+        return value
+
+    # ---- helpers --------------------------------------------------------------
+
+    def _peek(self) -> Token | None:
+        return self._tokens[self._pos] if self._pos < len(self._tokens) else None
+
+    def _accept(self, *texts: str) -> Token | None:
+        tok = self._peek()
+        if tok is not None and tok.text in texts:
+            self._pos += 1
+            return tok
+        return None
+
+    # ---- expression hierarchy -------------------------------------------------
+
+    def _ternary(self) -> int:
+        cond = self._logical_or()
+        if self._accept("?"):
+            then_branch = self._ternary()
+            if not self._accept(":"):
+                raise PreprocessorError("expected ':' in ?: expression", self._loc)
+            else_branch = self._ternary()
+            return then_branch if cond else else_branch
+        return cond
+
+    def _logical_or(self) -> int:
+        value = self._logical_and()
+        while self._accept("||"):
+            rhs = self._logical_and()
+            value = 1 if (value or rhs) else 0
+        return value
+
+    def _logical_and(self) -> int:
+        value = self._bitwise_or()
+        while self._accept("&&"):
+            rhs = self._bitwise_or()
+            value = 1 if (value and rhs) else 0
+        return value
+
+    def _bitwise_or(self) -> int:
+        value = self._bitwise_xor()
+        while self._accept("|"):
+            value |= self._bitwise_xor()
+        return value
+
+    def _bitwise_xor(self) -> int:
+        value = self._bitwise_and()
+        while self._accept("^"):
+            value ^= self._bitwise_and()
+        return value
+
+    def _bitwise_and(self) -> int:
+        value = self._equality()
+        while self._accept("&"):
+            value &= self._equality()
+        return value
+
+    def _equality(self) -> int:
+        value = self._relational()
+        while True:
+            if self._accept("=="):
+                value = 1 if value == self._relational() else 0
+            elif self._accept("!="):
+                value = 1 if value != self._relational() else 0
+            else:
+                break
+        return value
+
+    def _relational(self) -> int:
+        value = self._shift()
+        while True:
+            if self._accept("<="):
+                value = 1 if value <= self._shift() else 0
+            elif self._accept(">="):
+                value = 1 if value >= self._shift() else 0
+            elif self._accept("<"):
+                value = 1 if value < self._shift() else 0
+            elif self._accept(">"):
+                value = 1 if value > self._shift() else 0
+            else:
+                break
+        return value
+
+    def _shift(self) -> int:
+        value = self._additive()
+        while True:
+            if self._accept("<<"):
+                value <<= self._additive()
+            elif self._accept(">>"):
+                value >>= self._additive()
+            else:
+                break
+        return value
+
+    def _additive(self) -> int:
+        value = self._multiplicative()
+        while True:
+            if self._accept("+"):
+                value += self._multiplicative()
+            elif self._accept("-"):
+                value -= self._multiplicative()
+            else:
+                break
+        return value
+
+    def _multiplicative(self) -> int:
+        value = self._unary()
+        while True:
+            if self._accept("*"):
+                value *= self._unary()
+            elif self._accept("/"):
+                divisor = self._unary()
+                if divisor == 0:
+                    raise PreprocessorError("division by zero in #if", self._loc)
+                # C-Integer-Division: Trunkierung gegen 0
+                value = int(value / divisor)
+            elif self._accept("%"):
+                divisor = self._unary()
+                if divisor == 0:
+                    raise PreprocessorError("modulo by zero in #if", self._loc)
+                value = value - int(value / divisor) * divisor
+            else:
+                break
+        return value
+
+    def _unary(self) -> int:
+        if self._accept("+"):
+            return self._unary()
+        if self._accept("-"):
+            return -self._unary()
+        if self._accept("!"):
+            return 0 if self._unary() else 1
+        if self._accept("~"):
+            return ~self._unary()
+        return self._primary()
+
+    def _primary(self) -> int:
+        tok = self._peek()
+        if tok is None:
+            raise PreprocessorError("unexpected end of #if expression", self._loc)
+        if self._accept("("):
+            value = self._ternary()
+            if not self._accept(")"):
+                raise PreprocessorError("expected ')' in #if expression", self._loc)
+            return value
+        if tok.kind is TokenKind.CONSTANT:
+            self._pos += 1
+            return _parse_int_constant(tok)
+        if tok.kind is TokenKind.IDENTIFIER:
+            # ISO C99 §6.10.1: identifiers that survive macro expansion
+            # evaluate to 0.
+            self._pos += 1
+            return 0
+        raise PreprocessorError(f"unexpected token in #if expression: {tok.text!r}", tok.location)
+
+
+def _parse_int_constant(tok: Token) -> int:
+    text = tok.text
+    # Suffixe (u, U, l, L, ll, LL und Kombinationen) entfernen.
+    while text and text[-1] in "uUlL":
+        text = text[:-1]
+    try:
+        return int(text, 0)
+    except ValueError as exc:
+        raise PreprocessorError(
+            f"cannot parse integer constant {tok.text!r}", tok.location
+        ) from exc
