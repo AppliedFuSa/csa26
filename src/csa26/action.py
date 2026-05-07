@@ -35,10 +35,17 @@ class Config:
     fail_on_findings: bool
     sarif_output: Path
     workspace: Path
+    include_paths: tuple[Path, ...]
+    defines: tuple[str, ...]
+    undefines: tuple[str, ...]
 
     @classmethod
     def from_env(cls, env: dict[str, str]) -> Config:
         workspace = Path(_value_or(env, WORKSPACE_ENV, str(DEFAULT_WORKSPACE)))
+        include_paths = tuple(
+            (workspace / entry).resolve(strict=False)
+            for entry in parse_multiline(env.get("CSA26_INCLUDE_PATHS", ""))
+        )
         return cls(
             src_dir=workspace / _value_or(env, "CSA26_SRC_DIR", "."),
             rule_set=_value_or(env, "CSA26_RULE_SET", "misra-c-2012"),
@@ -48,6 +55,9 @@ class Config:
             fail_on_findings=_truthy(_value_or(env, "CSA26_FAIL_ON_FINDINGS", "false")),
             sarif_output=workspace / _value_or(env, "CSA26_SARIF_OUTPUT", "csa26.sarif"),
             workspace=workspace,
+            include_paths=include_paths,
+            defines=parse_multiline(env.get("CSA26_DEFINES", "")),
+            undefines=parse_multiline(env.get("CSA26_UNDEFINES", "")),
         )
 
 
@@ -63,6 +73,13 @@ def _value_or(env: dict[str, str], key: str, default: str) -> str:
 
 def _truthy(value: str) -> bool:
     return (value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def parse_multiline(value: str) -> tuple[str, ...]:
+    """Multiline-Action-Input → Tuple aus nicht-leeren, gestrippten Zeilen."""
+    if not value:
+        return ()
+    return tuple(line.strip() for line in value.splitlines() if line.strip())
 
 
 def filter_misra_only(findings: list[Finding]) -> tuple[list[Finding], int]:
@@ -92,7 +109,21 @@ def main(argv: list[str] | None = None) -> int:  # noqa: ARG001
 
     xml_path = config.workspace / ".csa26" / "cppcheck-report.xml"
     sys.stdout.write(f"::group::csa26 — running cppcheck on {config.src_dir}\n")
-    run = run_cppcheck(config.src_dir, xml_path)
+    if config.include_paths:
+        sys.stdout.write(f"  include paths: {len(config.include_paths)}\n")
+        for path in config.include_paths:
+            sys.stdout.write(f"    -I {path}\n")
+    if config.defines:
+        sys.stdout.write(f"  defines: {', '.join(config.defines)}\n")
+    if config.undefines:
+        sys.stdout.write(f"  undefines: {', '.join(config.undefines)}\n")
+    run = run_cppcheck(
+        config.src_dir,
+        xml_path,
+        include_paths=config.include_paths,
+        defines=config.defines,
+        undefines=config.undefines,
+    )
     if run.stderr.strip():
         sys.stdout.write(run.stderr)
     sys.stdout.write("::endgroup::\n")

@@ -7,6 +7,15 @@ Versionen folgen [Semver](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Added
+
+- Action-Inputs `include-paths`, `defines`, `undefines` (newline-separierte
+  Listen). Pflicht für realen Embedded-C, der gegen Vendor-SDKs gebaut
+  wird — ohne Header- und Define-Setup kann cppcheck reale Codebases
+  nicht voll parsen, und das MISRA-Addon liefert Falsch-Negative.
+  Pfade werden gegen das Workspace-Root aufgelöst, Defines/Undefines
+  werden roh an cppcheck weitergegeben.
+
 ### Changed
 
 - Findings ohne MISRA-Prefix (Cppcheck-Built-ins wie `nullPointer`,

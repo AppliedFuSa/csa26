@@ -62,8 +62,27 @@ Action-Tab.
 |---|---|---|
 | `src-dir` | `.` | Verzeichnis im Repo, das geprüft wird |
 | `rule-set` | `misra-c-2012` | Aktuell einziger unterstützter Wert |
-| `severity-threshold` | `style` | Mindest-Severity, ab der Findings gemeldet werden: `error` < `warning` < `style` < `performance` < `portability` < `information` |
+| `severity-threshold` | `style` | Mindest-Severity: `error` < `warning` < `style` < `performance` < `portability` < `information` |
 | `fail-on-findings` | `false` | Wenn `true`, schlägt die Action bei mindestens einem Finding fehl |
+| `include-paths` | `''` | Newline-separierte Liste von Include-Pfaden (relativ zum Repo-Root). Pflicht für realen Embedded-Code mit Vendor-SDKs |
+| `defines` | `''` | Newline-separierte Liste von Preprocessor-Defines, je `NAME` oder `NAME=VALUE` |
+| `undefines` | `''` | Newline-separierte Liste von Preprocessor-Symbolen, die undefiniert werden sollen |
+
+**Beispiel mit Vendor-SDK:**
+
+```yaml
+- uses: AppliedFuSa/csa26@v0
+  with:
+    src-dir: src
+    include-paths: |
+      vendor/cmsis/include
+      vendor/stm32-hal/include
+      src/include
+    defines: |
+      STM32F407xx
+      USE_HAL_DRIVER
+      __ARM_ARCH_7EM__
+```
 
 ### Outputs
 

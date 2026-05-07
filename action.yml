@@ -26,6 +26,30 @@ inputs:
     description: 'Path (relative to the workspace) where the SARIF file is written.'
     required: false
     default: 'csa26.sarif'
+  include-paths:
+    description: |
+      Newline-separated list of include paths (relative to the workspace) to
+      hand to cppcheck via -I. Use this to point cppcheck at vendor SDKs and
+      project header trees. Example:
+        include-paths: |
+          vendor/cmsis/include
+          src/include
+    required: false
+    default: ''
+  defines:
+    description: |
+      Newline-separated list of preprocessor defines for cppcheck (-D).
+      Each entry is either NAME or NAME=VALUE. Example:
+        defines: |
+          STM32F4=1
+          __ARM_ARCH_7EM__
+    required: false
+    default: ''
+  undefines:
+    description: |
+      Newline-separated list of preprocessor symbols to undefine (-U).
+    required: false
+    default: ''
 
 outputs:
   sarif-file:
@@ -42,3 +66,6 @@ runs:
     CSA26_SEVERITY_THRESHOLD: ${{ inputs.severity-threshold }}
     CSA26_FAIL_ON_FINDINGS: ${{ inputs.fail-on-findings }}
     CSA26_SARIF_OUTPUT: ${{ inputs.sarif-output }}
+    CSA26_INCLUDE_PATHS: ${{ inputs.include-paths }}
+    CSA26_DEFINES: ${{ inputs.defines }}
+    CSA26_UNDEFINES: ${{ inputs.undefines }}

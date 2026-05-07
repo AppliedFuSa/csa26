@@ -12,6 +12,7 @@ import os
 import re
 import subprocess
 import xml.etree.ElementTree as ET
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -50,22 +51,56 @@ def resolve_misra_addon() -> Path:
     return candidate
 
 
-def run_cppcheck(src_dir: Path, output_xml: Path) -> CppcheckRun:
-    """Führt Cppcheck mit MISRA-Addon aus und schreibt XML-Output."""
-    misra_py = resolve_misra_addon()
-    output_xml.parent.mkdir(parents=True, exist_ok=True)
-
-    cmd = [
+def build_cppcheck_args(
+    src_dir: Path,
+    output_xml: Path,
+    *,
+    misra_addon: Path,
+    include_paths: Sequence[Path] = (),
+    defines: Sequence[str] = (),
+    undefines: Sequence[str] = (),
+) -> list[str]:
+    """Baut die cppcheck-Argumentliste. Ausgelagert für Unit-Tests."""
+    args = [
         CPPCHECK_BIN,
         "--enable=warning,style,performance,portability,information",
         "--inline-suppr",
         "--quiet",
-        f"--addon={misra_py}",
+        f"--addon={misra_addon}",
         "--xml",
         "--xml-version=2",
         f"--output-file={output_xml}",
-        str(src_dir),
     ]
+    for path in include_paths:
+        args.append(f"-I{path}")
+    for define in defines:
+        args.append(f"-D{define}")
+    for undef in undefines:
+        args.append(f"-U{undef}")
+    args.append(str(src_dir))
+    return args
+
+
+def run_cppcheck(
+    src_dir: Path,
+    output_xml: Path,
+    *,
+    include_paths: Sequence[Path] = (),
+    defines: Sequence[str] = (),
+    undefines: Sequence[str] = (),
+) -> CppcheckRun:
+    """Führt Cppcheck mit MISRA-Addon aus und schreibt XML-Output."""
+    misra_py = resolve_misra_addon()
+    output_xml.parent.mkdir(parents=True, exist_ok=True)
+
+    cmd = build_cppcheck_args(
+        src_dir,
+        output_xml,
+        misra_addon=misra_py,
+        include_paths=include_paths,
+        defines=defines,
+        undefines=undefines,
+    )
     completed = subprocess.run(cmd, capture_output=True, text=True, check=False)
     return CppcheckRun(
         returncode=completed.returncode,
