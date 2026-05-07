@@ -4,7 +4,7 @@
 **An:** _org-Chat (`AppliedFuSa/_org`)
 **Datum:** 2026-05-07
 **Betreff:** Architektur-Memo csa26 — Phase-2-Pivot zu Eigenbau-Engine
-**Status:** offen
+**Status:** erledigt — siehe _org Commit `7f78f2a`
 
 > **Hinweis Wolfgang:** csa26-Chat hat keinen Schreibzugriff auf
 > `_org`, daher liegt diese Request-Datei im csa26-Repo unter
@@ -170,7 +170,11 @@ Setze `Status: erledigt`, ergänze unten:
 
 ### Erledigt am
 
-`YYYY-MM-DD` von `<chat-name>`
+`2026-05-07` von `_org-Chat`
 
-- Commit: `<hash>` in `_org`
-- Anmerkungen: `<falls etwas vom Ask abweicht>`
+- Commit: `7f78f2a` in `_org` — Architektur-Memo + Repo-Tabelle
+  reflektieren den Phase-2-Pivot zur Eigenbau-Engine vollständig.
+- Folge-Commit: `e52a878` in `_org` — Commit-Hash in der CRR-Kopie
+  unter `_org/cross-repo-requests/` nachgetragen.
+- Anmerkungen: alle sechs Akzeptanzkriterien erfüllt. Quell-Datei
+  hier bleibt als historische Audit-Spur im csa26-Repo.
