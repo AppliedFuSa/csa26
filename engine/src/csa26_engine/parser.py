@@ -542,10 +542,14 @@ class Parser:
         name, inner_builder = self._parse_direct_declarator()
 
         def build(base: Type) -> Type:
-            t = inner_builder(base)
+            # ISO-C-Spiral-Rule: Pointer-Modifikatoren wirken auf den
+            # Base-Type (wovon der eventuelle Function-/Array-Wrapper
+            # zurückgibt), NICHT auf den schon-gewrapten Function-/Array-
+            # Type. Daher Pointer-Layer ZUERST, dann inner_builder.
+            t = base
             for quals in reversed(pointer_layers):
                 t = PointerType(location=t.location, target=t, qualifiers=quals)
-            return t
+            return inner_builder(t)
 
         return name, build
 

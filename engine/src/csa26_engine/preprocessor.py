@@ -147,6 +147,10 @@ class Preprocessor:
         self.diagnostics: list[tuple[str, str, SourceLocation]] = []
         self.source_loader = source_loader or SourceLoader(include_paths)
         self._include_depth = 0
+        # User-#define-Macros (separat von command-line-defines) und ihre
+        # Verwendung — gebraucht für Rule 2.5 (unused macros).
+        self.user_macros: dict[str, Macro] = {}
+        self.used_macro_names: set[str] = set()
         self._init_defines(defines or {}, undefines)
 
     def process(self, *, source: str, file: str) -> list[Token]:
@@ -300,7 +304,7 @@ class Preprocessor:
         ):
             params, is_variadic, replacement_start = self._parse_params(line, name_tok.location)
             replacement = tuple(line[replacement_start:])
-            self.macros[name_tok.text] = Macro(
+            macro = Macro(
                 name=name_tok.text,
                 replacement=replacement,
                 location=name_tok.location,
@@ -308,14 +312,18 @@ class Preprocessor:
                 params=params,
                 is_variadic=is_variadic,
             )
+            self.macros[name_tok.text] = macro
+            self.user_macros[name_tok.text] = macro
             return
 
         replacement = tuple(line[1:])
-        self.macros[name_tok.text] = Macro(
+        macro = Macro(
             name=name_tok.text,
             replacement=replacement,
             location=name_tok.location,
         )
+        self.macros[name_tok.text] = macro
+        self.user_macros[name_tok.text] = macro
 
     def _parse_params(
         self, line: list[Token], loc: SourceLocation
@@ -459,12 +467,16 @@ class Preprocessor:
     def _is_defined_in(self, line: list[Token], loc: SourceLocation) -> bool:
         if not line or line[0].kind is not TokenKind.IDENTIFIER:
             raise PreprocessorError("expected identifier", loc)
-        return line[0].text in self.macros
+        name = line[0].text
+        # `#ifdef`/`#ifndef` zählen als Use des Macros — verhindert
+        # False-Positives bei Header-Guards in Rule 2.5.
+        self.used_macro_names.add(name)
+        return name in self.macros
 
     def _eval_if(self, line: list[Token], loc: SourceLocation) -> bool:
         if not line:
             raise PreprocessorError("#if without expression", loc)
-        evaluator = _ConstExprEvaluator(line, self.macros, loc)
+        evaluator = _ConstExprEvaluator(line, self.macros, loc, self.used_macro_names)
         return evaluator.evaluate() != 0
 
     # ---- macro expansion ------------------------------------------------------
@@ -493,6 +505,7 @@ class Preprocessor:
             return [Token(TokenKind.CONSTANT, str(tok.location.line), tok.location)], i + 1
 
         macro = self.macros[tok.text]
+        self.used_macro_names.add(macro.name)
         next_hide = hide_set | {macro.name}
 
         if not macro.is_function_like:
@@ -812,21 +825,29 @@ class _ConstExprEvaluator:
         line: list[Token],
         macros: dict[str, Macro],
         loc: SourceLocation,
+        used_macro_names: set[str] | None = None,
     ) -> None:
-        self._tokens = self._preprocess_line(line, macros)
+        self._tokens = self._preprocess_line(line, macros, used_macro_names)
         self._pos = 0
         self._loc = loc
 
     @staticmethod
-    def _preprocess_line(line: list[Token], macros: dict[str, Macro]) -> list[Token]:
+    def _preprocess_line(
+        line: list[Token],
+        macros: dict[str, Macro],
+        used_macro_names: set[str] | None = None,
+    ) -> list[Token]:
         # Erst `defined(X)`/`defined X` durch 0/1-Konstanten ersetzen,
         # damit der nachfolgende Macro-Expansion-Schritt sie nicht
-        # aufgreift. Dann verbleibende Identifier nicht expandieren —
-        # das überlässt dem Aufrufer (für Iteration 2 reicht das, weil
-        # die wichtigsten realen #if-Expressions ohne Macro-Expansion
-        # auskommen).
+        # aufgreift. `defined()` zählt als Use für Rule 2.5 (sonst
+        # melden wir Header-Guard-Macros als unused).
         out: list[Token] = []
         i = 0
+
+        def _record_use(name: str) -> None:
+            if used_macro_names is not None:
+                used_macro_names.add(name)
+
         while i < len(line):
             tok = line[i]
             if tok.kind is TokenKind.IDENTIFIER and tok.text == "defined":
@@ -839,6 +860,7 @@ class _ConstExprEvaluator:
                     ):
                         raise PreprocessorError("malformed defined(...)", tok.location)
                     name = line[j + 1].text
+                    _record_use(name)
                     out.append(
                         Token(
                             TokenKind.CONSTANT,
@@ -849,6 +871,7 @@ class _ConstExprEvaluator:
                     i = j + 3
                 elif j < len(line) and line[j].kind is TokenKind.IDENTIFIER:
                     name = line[j].text
+                    _record_use(name)
                     out.append(
                         Token(
                             TokenKind.CONSTANT,
