@@ -1,57 +1,94 @@
 name: self-smoketest
 
-# Lässt csa26 gegen sich selbst und gegen das eingecheckte
-# `tests/fixtures/c-sample/`-Verzeichnis laufen — als End-to-End-Check,
-# dass action.yml + Dockerfile + Wrapper-Code zusammenspielen.
+# csa26 v1.0 läuft gegen die drei eingecheckten Fixtures und gegen
+# sich selbst — End-to-End-Check, dass action.yml + Dockerfile +
+# Engine-CLI zusammenspielen.
 
 on:
   push:
-    branches: [main]
+    branches: [main, engine]
   pull_request:
 
 permissions:
   contents: read
 
 jobs:
-  smoketest-on-fixture:
-    name: csa26 → eigene Fixture
+  smoketest-basic:
+    name: csa26 → 01-basic
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run csa26 on tests/fixtures/c-sample
+      - name: Run csa26 on basic fixture
         id: csa26
         uses: ./
         with:
-          src-dir: tests/fixtures/c-sample
-          severity-threshold: style
+          src-dir: engine/tests/fixtures/basic
+          severity-threshold: note
           fail-on-findings: 'false'
-          sarif-output: csa26-fixture.sarif
+          sarif-output: csa26-basic.sarif
 
       - name: SARIF artefact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: csa26-fixture-sarif
-          path: csa26-fixture.sarif
+          name: csa26-basic-sarif
+          path: csa26-basic.sarif
 
       - name: Sanity-Check — Fixture muss Findings produzieren
         run: |
           if [ "${{ steps.csa26.outputs.finding-count }}" = "0" ]; then
-            echo "::error::Fixture sollte MISRA-Findings produzieren — bekommen 0."
+            echo "::error::basic fixture should produce MISRA findings — got 0."
             exit 1
           fi
-          echo "csa26 fand ${{ steps.csa26.outputs.finding-count }} Findings in der Fixture."
+          echo "csa26-engine found ${{ steps.csa26.outputs.finding-count }} findings on basic."
 
       - name: Sanity-Check — nur MISRA-IDs im SARIF
         run: |
           python3 - <<'PY'
           import json, sys
-          sarif = json.loads(open("csa26-fixture.sarif").read())
+          sarif = json.loads(open("csa26-basic.sarif").read())
           rule_ids = sorted({r["ruleId"] for r in sarif["runs"][0]["results"]})
           non_misra = [rid for rid in rule_ids if not rid.startswith("misra-")]
           print("rule ids:", rule_ids)
           if non_misra:
-              print(f"::error::SARIF enthält Nicht-MISRA-IDs: {non_misra}")
+              print(f"::error::SARIF contains non-MISRA ids: {non_misra}")
               sys.exit(1)
           PY
+
+  smoketest-complex:
+    name: csa26 → 03-complex (with defines)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run csa26 on complex fixture
+        id: csa26
+        uses: ./
+        with:
+          src-dir: engine/tests/fixtures/complex/src
+          include-paths: |
+            engine/tests/fixtures/complex/vendor/cmsis/include
+            engine/tests/fixtures/complex/vendor/stm32hal/include
+            engine/tests/fixtures/complex/src/include
+          defines: |
+            STM32F407xx
+            USE_HAL_DRIVER
+          severity-threshold: warning
+          fail-on-findings: 'false'
+          sarif-output: csa26-complex.sarif
+
+      - name: SARIF artefact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: csa26-complex-sarif
+          path: csa26-complex.sarif
+
+      - name: Sanity-Check — Fixture muss Findings produzieren
+        run: |
+          if [ "${{ steps.csa26.outputs.finding-count }}" = "0" ]; then
+            echo "::error::complex fixture should produce MISRA findings — got 0."
+            exit 1
+          fi
+          echo "csa26-engine found ${{ steps.csa26.outputs.finding-count }} findings on complex."

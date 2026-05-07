@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "csa26-engine"
-version = "0.0.1"
-description = "csa26 — eigenständige MISRA-C:2012-Analyse-Engine (Phase-2-Prototyp)."
+version = "1.0.0"
+description = "csa26 — eigenständige MISRA-C:2012-Analyse-Engine."
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
@@ -32,6 +32,9 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+csa26_engine = ["builtin_headers/*.h"]
 
 [tool.ruff]
 line-length = 100

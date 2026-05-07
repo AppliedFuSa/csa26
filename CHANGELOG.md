@@ -7,42 +7,76 @@ Versionen folgen [Semver](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
-## [0.1.0] — 2026-05-07
+## [1.0.0] — 2026-05-07
 
-Erste öffentliche Version. Public-Repo, Apache-2.0, GitHub-Action-
-Distribution. Phase-1-Prototyp für Konzept-Validierung.
+Strategische Wende von Phase 1 (Cppcheck-Wrapper) zur **eigenständigen
+csa26-Engine**. Komplettes Stack-Eigentum: Lexer, Preprocessor,
+Parser, Symbol-/Type-System, Rule-Engine — kein Drittanbieter-Static-
+Analyser mehr im Stack. Vorbereitung für teq18-Self-Qualifikation
+(siehe `_org/architecture/csa26.md`).
 
 ### Added
 
-- Bootstrap des Repos: `LICENSE` (Apache-2.0), `NOTICE` (MISRA-Disclaimer +
-  Pre-Audit-Abgrenzung).
-- `action.yml` als GitHub-Docker-Action mit Inputs `src-dir`,
-  `rule-set`, `severity-threshold`, `fail-on-findings`, `sarif-output`,
-  `include-paths`, `defines`, `undefines` und Outputs `sarif-file`,
-  `finding-count`. Newline-separierte Multiline-Inputs für reale
-  Vendor-SDK-Setups.
-- `Dockerfile` auf Basis `python:3.12-slim` mit Cppcheck (apt) und dem
-  passenden Addons-Tarball aus dem Cppcheck-Upstream-Repo, version-
-  synchron zur installierten Cppcheck-Version.
-- Python-Wrapper unter `src/csa26/`: Cppcheck-Aufruf, XML-Parsing, drei
-  Outputs (Job Summary, Inline-Annotations, SARIF 2.1.0).
-- MISRA-only-Filterung: Cppcheck-Built-in-Findings (`nullPointer`,
-  `constParameterPointer`, …) werden verworfen. csa26 ist gezielt
-  MISRA-Pre-Audit.
-- Annotation-Message beginnt mit `[<rule-id>]`-Prefix, damit Reviewer
-  im PR-Diff die Regel sofort sehen.
-- Hard-Wraps in Regel-Markdown-Dateien werden zu Leerzeichen
-  kollabiert (verhindert mehrzeilige Annotations).
-- Pflege-Asset für eigene Regel-Paraphrasen unter `rules/c2012/` (Format-
-  Spec + zwei Beispiele für 8.13 und 2.7).
-- Pytest-Test-Suite mit 40 Tests (Severity-Ordering, XML-Parser,
-  Cppcheck-Args, SARIF-Builder, Annotation-Format, Rules-Lookup,
-  Config-Defaults inkl. Multiline-Inputs, MISRA-Filter).
-- CI-Workflows: `test` (Lint + Pytest + Image-Build), `self-smoketest`
-  (csa26 läuft gegen die eingebaute C-Fixture mit SARIF-IDs-Check),
-  `release` (tag-getriggert: ghcr-Image-Build und vN-Branch-Patch).
-- `docs/smoketest.md` mit Drei-Ebenen-Smoketest-Konzept,
-  `docs/release.md` mit Tag-Prozedur.
+- **Eigenständige Engine** unter `engine/src/csa26_engine/`:
+  - Hand-geschriebener C-Lexer (ISO C99 §6.4)
+  - Preprocessor mit object-/function-like Macros, `__VA_ARGS__`,
+    `#`/`##`, vollwertiger `#if`-Konstanten-Auswertung, Adjacent-
+    String-Concatenation
+  - Recursive-Descent-Parser für ein C99-Subset inkl. typedef-Tracker,
+    Spiral-Rule-Declarators, GCC-Extensions (`__attribute__`, asm,
+    Statement-Expressions)
+  - Symbol-Resolution mit Scope-Stack (file/function/block) und
+    Namespace-Trennung (ordinaries, tags, labels)
+  - Type-System mit Pointer-Compat, Const-Tracking, Integer-
+    Promotions, Usual-Arithmetic-Conversions
+  - 20-Rule-Engine mit FuSa-priorisierter Rule-Auswahl in fünf
+    Clustern (Type-Safety / Control-Flow / Pointer-Disziplin /
+    Funktions-Hygiene / Toter-Code)
+  - Built-in-Header-Stubs für `<stdint.h>`, `<stddef.h>`,
+    `<stdbool.h>`, `<string.h>`, `<stdio.h>`, `<stdlib.h>` —
+    funktioniert ohne System-libc im Container
+- **Output-Pipeline**: Job-Summary-Markdown, GitHub-Workflow-
+  Annotations, SARIF 2.1.0 — strukturell kompatibel mit dem
+  Phase-1-Output-Format.
+- **CLI**: `csa26-engine` als Console-Script. Inputs werden über
+  `CSA26_*`-Environment-Variablen aus `action.yml` gelesen.
+- **220 Engine-Unit-Tests** und **5 End-to-End-Tests** gegen die
+  drei `csa26-testfixture`-Beispiele (basic / medium / complex).
 
-[Unreleased]: https://github.com/AppliedFuSa/csa26/compare/v0.1.0...HEAD
+### Changed
+
+- **Dockerfile** drastisch vereinfacht: kein `cppcheck` mehr,
+  kein Addons-Tarball, kein Net-Pull beim Build. Nur
+  `python:3.12-slim` + `pip install ./engine`.
+- **action.yml**-Inputs unverändert (rückwärtskompatibel zu v0.1):
+  `src-dir`, `rule-set`, `severity-threshold`, `fail-on-findings`,
+  `sarif-output`, `include-paths`, `defines`, `undefines`.
+- Self-Smoketest-Workflow läuft jetzt gegen die drei Engine-
+  Fixtures (basic / complex), prüft Findings-Anzahl und MISRA-
+  only-IDs im SARIF.
+
+### Removed
+
+- **Phase-1-Cppcheck-Wrapper** (`src/csa26/`, `tests/`, `rules/`,
+  Top-Level-`pyproject.toml`) — vollständig durch die Eigenbau-
+  Engine ersetzt.
+- v0.1.0-Tag und das gepushte ghcr-Image bleiben als Backup
+  bestehen und sind weiter unter `@v0.1.0` aufrufbar.
+
+### Migration
+
+Bestehende Workflows mit `uses: AppliedFuSa/csa26@v0` müssen NICHT
+geändert werden — die Action-Inputs sind kompatibel. Die produzierten
+Findings unterscheiden sich aber: csa26-engine prüft die 20 selbst
+implementierten FuSa-priorisierten Rules anstelle der ~80–110 Cppcheck-
+MISRA-Addon-Rules. Coverage und Charakteristik sind in
+`docs/coverage.md` (Phase 1) bzw. dem Architektur-Memo dokumentiert.
+
+## [0.1.0] — 2026-05-07
+
+Erste öffentliche Version (Phase-1-Cppcheck-Wrapper). Eingefroren
+auf diesem Tag. Code wurde mit dem v1.0.0-Cut-Over entfernt.
+
+[Unreleased]: https://github.com/AppliedFuSa/csa26/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/AppliedFuSa/csa26/releases/tag/v1.0.0
 [0.1.0]: https://github.com/AppliedFuSa/csa26/releases/tag/v0.1.0

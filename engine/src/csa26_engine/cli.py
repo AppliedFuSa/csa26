@@ -79,7 +79,12 @@ def main(argv: list[str] | None = None) -> int:  # noqa: ARG001
         _write_action_outputs(sarif_file=config.sarif_output, finding_count=0)
         return 0
 
-    loader = SourceLoader(include_paths=config.include_paths)
+    # Built-in-Headers (stdint.h, stddef.h, …) am Ende der Suchreihenfolge —
+    # so überschreiben User-Includes sie, ein nacktes
+    # `#include <stdint.h>` findet aber immer einen Fallback.
+    builtin_headers = _builtin_headers_dir()
+    full_include_paths = (*config.include_paths, builtin_headers)
+    loader = SourceLoader(include_paths=full_include_paths)
     define_dict = _defines_to_dict(config.defines)
 
     sys.stdout.write(f"::group::csa26-engine — analysing {len(sources)} source file(s)\n")
@@ -173,6 +178,13 @@ def _collect_c_sources(root: Path) -> Iterable[Path]:
         yield root
         return
     yield from sorted(root.rglob("*.c"))
+
+
+def _builtin_headers_dir() -> Path:
+    """Pfad zum eingebauten `builtin_headers/`-Verzeichnis im Package."""
+    import csa26_engine
+
+    return Path(csa26_engine.__file__).parent / "builtin_headers"
 
 
 def _relative_to(path: Path, workspace: Path) -> str:

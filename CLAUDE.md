@@ -35,8 +35,15 @@ fremden Repos.
 ## Dieses Tool — csa26
 
 **Zweck:** GitHub-Action-natives Pre-Audit-Werkzeug für embedded-C-
-Quellcode gegen MISRA-C:2012. Wrapper über Cppcheck mit MISRA-Addon.
+Quellcode gegen ein 20er-Subset von MISRA-C:2012. Eigenständige
+Engine in `engine/` (Lexer, Preprocessor, Parser, Symbol-/Type-
+System, Rule-Engine), kein Drittanbieter-Static-Analyser im Stack.
 Outputs: Job Summary, Inline-Annotations, SARIF.
+
+**Stand seit v1.0.0 (2026-05-07):** Phase-1-Cppcheck-Wrapper-Code
+wurde mit dem Cut-Over entfernt; die Engine ist die alleinige
+Implementation. Tag `v0.1.0` und das ältere ghcr-Image bleiben als
+historisches Backup verfügbar.
 
 **Architektur-Memo:** `_org/architecture/csa26.md` (im _org-Repo) —
 **Ground Truth.** Bei Konflikt mit dieser Datei oder mit
