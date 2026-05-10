@@ -10,8 +10,10 @@
   Liste unten.
 - **Tool-Qualifikation:** **nicht** qualifiziert nach ISO 26262-8.
   Eine teq18-Self-Qualifikation ist Phase-2-Roadmap.
-- **Lizenz:** Apache-2.0, **AS IS**, ohne Gewährleistung. Siehe
-  [`LICENSE`](LICENSE) und [`NOTICE`](NOTICE).
+- **Lizenz / End-User-Vereinbarung:** Apache-2.0, **AS IS**, ohne
+  Gewährleistung. Die [`LICENSE`](LICENSE)-Datei ist die End-User-
+  Lizenz-Vereinbarung (EULA) für csa26. Siehe auch [`NOTICE`](NOTICE)
+  und [`PRIVACY.md`](PRIVACY.md).
 - **Stabilisierungs-Phase:** v1.x stabilisiert das aktuelle Subset.
   Nach erfolgreicher Stabilisierung folgen **schrittweise weitere
   FuSa-relevante MISRA-Regeln**, priorisiert nach Discovery-Feedback.
