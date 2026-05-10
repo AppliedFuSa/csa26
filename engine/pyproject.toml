@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "csa26-engine"
-version = "1.0.0"
+version = "1.0.1"
 description = "csa26 — eigenständige MISRA-C:2012-Analyse-Engine."
 readme = "README.md"
 requires-python = ">=3.12"

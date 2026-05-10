@@ -1,5 +1,5 @@
 name: 'csa26 — MISRA-C:2012 Pre-Audit'
-description: 'Runs Cppcheck with the MISRA addon on your C sources and reports findings as job summary, inline annotations, and SARIF.'
+description: 'Runs the standalone csa26 engine over your embedded C sources and reports MISRA-C:2012 findings as job summary, inline annotations, and SARIF — no third-party static analyser involved.'
 author: 'Applied FuSa / Wolfgang Freese'
 branding:
   icon: 'shield'
@@ -7,7 +7,7 @@ branding:
 
 inputs:
   src-dir:
-    description: 'Directory in the checked-out repository to analyse.'
+    description: 'Directory in the checked-out repository to analyse (recursive).'
     required: false
     default: '.'
   rule-set:
@@ -15,9 +15,9 @@ inputs:
     required: false
     default: 'misra-c-2012'
   severity-threshold:
-    description: 'Minimum Cppcheck severity to report. One of: error, warning, style, performance, portability, information.'
+    description: 'Minimum severity to report. One of: error, warning, note.'
     required: false
-    default: 'style'
+    default: 'warning'
   fail-on-findings:
     description: 'If "true", the action exits non-zero when at least one finding is reported. Default "false" — findings are surfaced but do not break the build.'
     required: false
@@ -28,8 +28,8 @@ inputs:
     default: 'csa26.sarif'
   include-paths:
     description: |
-      Newline-separated list of include paths (relative to the workspace) to
-      hand to cppcheck via -I. Use this to point cppcheck at vendor SDKs and
+      Newline-separated list of include paths (relative to the workspace).
+      Required for real embedded code that references vendor SDKs and
       project header trees. Example:
         include-paths: |
           vendor/cmsis/include
@@ -38,16 +38,16 @@ inputs:
     default: ''
   defines:
     description: |
-      Newline-separated list of preprocessor defines for cppcheck (-D).
-      Each entry is either NAME or NAME=VALUE. Example:
+      Newline-separated list of preprocessor defines, each entry NAME or
+      NAME=VALUE. Example:
         defines: |
-          STM32F4=1
-          __ARM_ARCH_7EM__
+          STM32F407xx
+          USE_HAL_DRIVER
     required: false
     default: ''
   undefines:
     description: |
-      Newline-separated list of preprocessor symbols to undefine (-U).
+      Newline-separated list of preprocessor symbols to undefine.
     required: false
     default: ''
 

@@ -7,6 +7,16 @@ Versionen folgen [Semver](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [1.0.1] — 2026-05-08
+
+### Changed
+
+- `action.yml` description und Input-Beschreibungen von Phase-1-
+  Cppcheck-Texten auf den csa26-engine-Stack aktualisiert.
+- `severity-threshold`-Default von `style` (Phase-1-Cppcheck-Severity,
+  von der Engine als `note` interpretiert) auf `warning` umgestellt —
+  konsistent mit der CLI und dem README v1.0.
+
 ## [1.0.0] — 2026-05-07
 
 Strategische Wende von Phase 1 (Cppcheck-Wrapper) zur **eigenständigen
@@ -77,6 +87,7 @@ MISRA-Addon-Rules. Coverage und Charakteristik sind in
 Erste öffentliche Version (Phase-1-Cppcheck-Wrapper). Eingefroren
 auf diesem Tag. Code wurde mit dem v1.0.0-Cut-Over entfernt.
 
-[Unreleased]: https://github.com/AppliedFuSa/csa26/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/AppliedFuSa/csa26/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/AppliedFuSa/csa26/releases/tag/v1.0.1
 [1.0.0]: https://github.com/AppliedFuSa/csa26/releases/tag/v1.0.0
 [0.1.0]: https://github.com/AppliedFuSa/csa26/releases/tag/v0.1.0
