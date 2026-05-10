@@ -41,7 +41,6 @@ jobs:
             NUM=$(gh issue create \
               -R AppliedFuSa/csa26 \
               --title "${TRACKING_ISSUE_TITLE}" \
-              --label "tracking" \
               --body "Automatisch geführter Tracker. Jeder erfolgreiche forum-monitor-Run hängt einen Kommentar mit den neuen Treffern an, oder schweigt, wenn nichts neu ist." \
               | grep -oE '[0-9]+$')
           fi
