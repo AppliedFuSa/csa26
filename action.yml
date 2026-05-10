@@ -59,7 +59,7 @@ outputs:
 
 runs:
   using: 'docker'
-  image: 'Dockerfile'
+  image: 'docker://ghcr.io/appliedfusa/csa26:v1'
   env:
     CSA26_SRC_DIR: ${{ inputs.src-dir }}
     CSA26_RULE_SET: ${{ inputs.rule-set }}
