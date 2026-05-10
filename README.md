@@ -1,15 +1,32 @@
 # csa26 — MISRA-C:2012 Pre-Audit-Check als GitHub Action
 
-> **Status v1.0:** Eigenständige MISRA-C:2012-Analyse-Engine.
-> Komplett Apache-2.0, kein Drittanbieter-Static-Analyser im Stack.
-> Phase-1 (Cppcheck-Wrapper, v0.1.0) wurde mit dem Cut-Over zu v1.0.0
-> ersetzt — der Tag bleibt als Backup verfügbar.
+## Status v1.0 — Pre-Audit-Werkzeug, kein Compliance-Tool
 
-csa26 prüft embedded-C-Quellcode bei jedem Push gegen einen sorgfältig
-ausgewählten Subset von **20 FuSa-priorisierten MISRA-C:2012-Regeln**.
-Die Action läuft in der GitHub-CI Ihres eigenen Repositorys, schreibt
-Findings als Inline-Annotations in den Pull Request, eine Übersicht ins
-Action-Job-Summary und optional eine SARIF-Datei in den Security-Tab.
+- **Pre-Audit-Charakter:** csa26 findet wahrscheinliche
+  Regelverletzungen — ersetzt **keine offizielle MISRA-C:2012-
+  Compliance-Bewertung**. Der formale Nachweis bleibt bei Ihrem
+  Safety-Manager.
+- **Coverage:** 20 von 143 MISRA-C:2012-Regeln, FuSa-priorisiert.
+  Liste unten.
+- **Tool-Qualifikation:** **nicht** qualifiziert nach ISO 26262-8.
+  Eine teq18-Self-Qualifikation ist Phase-2-Roadmap.
+- **Lizenz:** Apache-2.0, **AS IS**, ohne Gewährleistung. Siehe
+  [`LICENSE`](LICENSE) und [`NOTICE`](NOTICE).
+- **Stabilisierungs-Phase:** v1.x stabilisiert das aktuelle Subset.
+  Nach erfolgreicher Stabilisierung folgen **schrittweise weitere
+  FuSa-relevante MISRA-Regeln**, priorisiert nach Discovery-Feedback.
+- **Feedback ausdrücklich erwünscht:** Bug-Reports, Erweiterungs-
+  Vorschläge und Anwender-Berichte aus realen Codebases steuern
+  direkt die Phase-2-Priorisierung. Kanäle: [Issues](https://github.com/AppliedFuSa/csa26/issues),
+  [Discussions](https://github.com/AppliedFuSa/csa26/discussions).
+
+---
+
+csa26 prüft embedded-C-Quellcode bei jedem Push gegen den oben
+genannten Subset. Die Action läuft in der GitHub-CI Ihres eigenen
+Repositorys, schreibt Findings als Inline-Annotations in den Pull
+Request, eine Übersicht ins Action-Job-Summary und optional eine
+SARIF-Datei in den Security-Tab.
 
 > **Ihr Quellcode verlässt Ihr Repo nicht.** Die Analyse passiert in
 > einem Container, den GitHub auf Ihrem CI-Runner startet. Applied

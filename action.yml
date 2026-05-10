@@ -1,5 +1,5 @@
 name: 'csa26 — MISRA-C:2012 Pre-Audit'
-description: 'Runs the standalone csa26 engine over your embedded C sources and reports MISRA-C:2012 findings as job summary, inline annotations, and SARIF — no third-party static analyser involved.'
+description: 'Pre-audit MISRA-C:2012 checker for embedded C, distributed as a GitHub Action. Reports findings as job summary, inline annotations, and SARIF. v1 covers a curated 20-rule subset; not tool-qualified per ISO 26262-8; AS IS under Apache-2.0. Feedback shapes future rule additions.'
 author: 'Applied FuSa / Wolfgang Freese'
 branding:
   icon: 'shield'

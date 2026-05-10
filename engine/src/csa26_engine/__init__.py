@@ -6,4 +6,4 @@ Type-System, Rule-Engine. Cppcheck und externe Frontends sind
 explizit nicht im Stack.
 """
 
-__version__ = "1.0.1"
+__version__ = "1.0.2"

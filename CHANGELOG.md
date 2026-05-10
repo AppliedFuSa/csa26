@@ -7,6 +7,24 @@ Versionen folgen [Semver](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [1.0.2] — 2026-05-10
+
+### Changed
+
+- **README** bekommt einen prominenten Status-Block ganz oben mit
+  sechs klar formulierten Bullets: Pre-Audit-Charakter, Coverage,
+  Tool-Qualifikations-Stand, Lizenz-Disclaimer, Stabilisierungs-
+  Phase und ausdrückliche Feedback-Einladung. Der bestehende
+  Datenfluss-Hinweis bleibt direkt darunter.
+- **`action.yml`-`description`** komplett neu — der Marketplace
+  zeigt diese Zeile prominent. Neuer Text: „Pre-audit MISRA-C:2012
+  checker … v1 covers a curated 20-rule subset; not tool-qualified
+  per ISO 26262-8; AS IS under Apache-2.0. Feedback shapes future
+  rule additions."
+
+Vorbereitung auf das GitHub-Marketplace-Listing — nichts an der
+Engine-Funktionalität geändert, 220 Tests bleiben grün.
+
 ## [1.0.1] — 2026-05-08
 
 ### Changed
@@ -87,7 +105,8 @@ MISRA-Addon-Rules. Coverage und Charakteristik sind in
 Erste öffentliche Version (Phase-1-Cppcheck-Wrapper). Eingefroren
 auf diesem Tag. Code wurde mit dem v1.0.0-Cut-Over entfernt.
 
-[Unreleased]: https://github.com/AppliedFuSa/csa26/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/AppliedFuSa/csa26/compare/v1.0.2...HEAD
+[1.0.2]: https://github.com/AppliedFuSa/csa26/releases/tag/v1.0.2
 [1.0.1]: https://github.com/AppliedFuSa/csa26/releases/tag/v1.0.1
 [1.0.0]: https://github.com/AppliedFuSa/csa26/releases/tag/v1.0.0
 [0.1.0]: https://github.com/AppliedFuSa/csa26/releases/tag/v0.1.0
