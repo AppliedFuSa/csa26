@@ -7,6 +7,18 @@ Versionen folgen [Semver](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [1.0.3] — 2026-05-10
+
+### Changed
+
+- `action.yml`-`description` auf 99 Zeichen gekürzt — das GitHub-
+  Marketplace-Validation lehnt ab >125 Zeichen ab. Neue Variante:
+  „Pre-audit MISRA-C:2012 checker for embedded C. Runs in your CI,
+  curated 20-rule subset, Apache-2.0."
+- Die ausführliche Selbst-Beschreibung (mit Tool-Qualifikations-
+  und AS-IS-Disclaimer + Feedback-Hinweis) bleibt im README-Status-
+  Block, der direkt unter der Marketplace-Description verlinkt wird.
+
 ## [1.0.2] — 2026-05-10
 
 ### Changed
@@ -105,7 +117,8 @@ MISRA-Addon-Rules. Coverage und Charakteristik sind in
 Erste öffentliche Version (Phase-1-Cppcheck-Wrapper). Eingefroren
 auf diesem Tag. Code wurde mit dem v1.0.0-Cut-Over entfernt.
 
-[Unreleased]: https://github.com/AppliedFuSa/csa26/compare/v1.0.2...HEAD
+[Unreleased]: https://github.com/AppliedFuSa/csa26/compare/v1.0.3...HEAD
+[1.0.3]: https://github.com/AppliedFuSa/csa26/releases/tag/v1.0.3
 [1.0.2]: https://github.com/AppliedFuSa/csa26/releases/tag/v1.0.2
 [1.0.1]: https://github.com/AppliedFuSa/csa26/releases/tag/v1.0.1
 [1.0.0]: https://github.com/AppliedFuSa/csa26/releases/tag/v1.0.0
