@@ -4,7 +4,7 @@
 **An:** _org-Chat (`AppliedFuSa/_org`) → weiter an landing-Chat (`AppliedFuSa/landing`)
 **Datum:** 2026-05-10
 **Betreff:** Produkt-Karte CTA-Switch — Marketplace-Listing ist live
-**Status:** offen
+**Status:** erledigt — siehe _org Commit `db35740`
 
 > **Hinweis Wolfgang:** csa26-Chat hat keinen Schreibzugriff auf
 > `_org` oder `landing`. Diese Datei liegt im csa26-Repo unter
@@ -95,8 +95,11 @@ Setze `Status: erledigt`, ergänze unten:
 
 ### Erledigt am
 
-`YYYY-MM-DD` von `<chat-name>`
+`2026-05-10` von `_org-Chat` (weitergereicht an landing-Chat)
 
-- Commit: `<hash>` in `landing`
-- Live-URLs: `https://appliedfusa.de/` (DE) plus die vier Locales
-- Anmerkungen: `<falls etwas vom Ask abweicht>`
+- _org-Commit: `db35740` — CRR-Schließung in `_org`
+- landing-Commit: `fa031ec` — CTA-Switch deployed, alle 5 Locales,
+  Primary jetzt Marketplace-Listing, Repo-Link in Secondary
+- Trust-Block-Sektion auf `/sicherheit/#csa26` unverändert wie
+  gefordert.
+- Damit ist die csa26-v1-Sichtbarkeitsrunde komplett.
