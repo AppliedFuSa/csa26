@@ -1,0 +1,13 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Frage stellen / Ask a question
+    url: https://github.com/AppliedFuSa/csa26/discussions
+    about: |
+      Allgemeine Fragen zur Nutzung, MISRA-Auslegungen oder
+      Setup-Probleme bitte als Discussion. Issues nur für
+      reproduzierbare Bugs und Feature-Vorschläge.
+  - name: Sicherheitslücken / Security issues
+    url: https://github.com/AppliedFuSa/csa26/security/advisories/new
+    about: |
+      Bei Sicherheitsthemen bitte Private Reporting nutzen,
+      nicht Issues.

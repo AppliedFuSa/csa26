@@ -1,0 +1,55 @@
+name: Feature-Request / Feature request
+description: Vorschlag für eine zusätzliche Rule, einen neuen Input oder eine Output-Erweiterung.
+title: "[feature] "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        csa26 v1 ist bewusst auf 20 FuSa-priorisierte MISRA-Rules
+        beschränkt (siehe README). Erweiterungen werden Phase 2
+        nach Discovery-Validierung priorisiert. Vorschläge sind
+        ausdrücklich willkommen — sie helfen bei der Priorisierung.
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Art des Vorschlags
+      options:
+        - Zusätzliche MISRA-C:2012-Rule
+        - Action-Input erweitern
+        - Output-Format erweitern
+        - Sonstiges
+    validations:
+      required: true
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation / FuSa-Kontext
+      description: |
+        Welches Problem in Deinem Projekt löst das? Idealerweise
+        konkretes Beispiel aus echtem Embedded-Code, nicht „weil
+        der MISRA-Standard das verlangt".
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Vorschlag
+      description: |
+        Wie könnte das Verhalten aussehen? Mock-Up von Action-Input
+        oder erwarteter Finding-Output ist hilfreich.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternativen, die Du erwogen hast
+      placeholder: |
+        Z.B. „könnte das Cppcheck-Built-in lösen", „könnte ich per
+        eigenem Skript lösen", „Helix QAC kann das".
+    validations:
+      required: false

@@ -1,0 +1,91 @@
+name: Bug-Report / Bug report
+description: Reproduzierbarer Fehler beim Lauf der csa26-Action — falscher Befund, Crash, kaputter SARIF-Output, etc.
+title: "[bug] "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Vielen Dank, dass Du Dir die Zeit nimmst. Bitte fülle die
+        Felder unten so vollständig wie möglich aus — je präziser,
+        desto schneller können wir den Bug nachstellen.
+
+        > Zur Nutzungs-/Konfigurations-Frage? Bitte zuerst die
+        > [Discussions](https://github.com/AppliedFuSa/csa26/discussions)
+        > nutzen.
+
+  - type: input
+    id: csa26-version
+    attributes:
+      label: csa26-Version
+      description: Welcher Tag oder Branch (`@v1`, `@v1.0.1`, …)?
+      placeholder: "v1.0.1"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: env
+    attributes:
+      label: Umgebung
+      options:
+        - GitHub Actions (ubuntu-latest)
+        - Lokal (Docker)
+        - Andere — bitte unten beschreiben
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal-Reproduktion
+      description: |
+        Bitte den kleinsten C-Snippet (oder Link auf ein öffentliches
+        Repo) plus den genauen Workflow-Step. Ohne Reproduktion können
+        wir nichts machen.
+      placeholder: |
+        Workflow-Step:
+        ```yaml
+        - uses: AppliedFuSa/csa26@v1
+          with:
+            src-dir: src
+            ...
+        ```
+
+        C-Code, der das Problem auslöst:
+        ```c
+        int main(void) { return 0; }
+        ```
+      render: markdown
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Erwartetes Verhalten
+      placeholder: "Welche Findings hast Du erwartet?"
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Tatsächliches Verhalten
+      placeholder: |
+        Was passiert stattdessen? Action-Log-Zeilen oder Error-Output
+        bitte als Code-Block einfügen.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: extras
+    attributes:
+      label: Weitere Hinweise
+      placeholder: |
+        - Optional: SARIF-Auszug, GitHub-Action-Run-URL, sonstige
+          Beobachtungen.
+        - Falls Du den Bug schon eingegrenzt hast: welche Rule, welche
+          Code-Stelle?
+    validations:
+      required: false

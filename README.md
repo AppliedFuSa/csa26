@@ -112,6 +112,56 @@ Alle übrigen MISRA-Guidelines werden **nicht** von csa26 geprüft.
 Die Auswahl war bewusst — siehe Architektur-Memo. Erweiterungen
 folgen bei Bedarf in v1.x.
 
+Detaillierte Anleitungen für typische Projekt-Setups (standalone-C,
+Modul mit lokalem `include/`, STM32-Stil mit Vendor-SDK) stehen in
+[`docs/usage.md`](docs/usage.md).
+
+## FAQ und Troubleshooting
+
+**„Die Action schlägt mit `header xxx not found` fehl."**
+Wahrscheinlich fehlt `include-paths`. csa26 kennt nur die
+eingebauten C99-System-Stubs (`stdint.h`, `stddef.h`,
+`stdbool.h`, `string.h`, `stdio.h`, `stdlib.h`); alle eigenen
+Header und Vendor-SDKs müssen via `include-paths` durchgereicht
+werden. Beispiele in [`docs/usage.md`](docs/usage.md).
+
+**„Vendor-Header verlangt ein Define wie `STM32F407xx`."**
+Das setzt Du via `defines:` (mehrzeilige Liste, NAME oder
+NAME=VALUE). Funktioniert wie `gcc -D…`. Auch hier Beispiele
+in [`docs/usage.md`](docs/usage.md).
+
+**„Warum sehe ich keine Findings für Rule X?"**
+csa26 v1 prüft nur die 20 oben gelisteten Rules. Wenn Rule X nicht
+dabei ist, wird sie strukturell nicht gemeldet. Wenn Rule X
+dabei ist und Du erwartest, dass sie auf einer bestimmten
+Code-Stelle anschlägt, mache bitte einen [Bug-Report](https://github.com/AppliedFuSa/csa26/issues/new?template=bug_report.yml)
+mit Minimal-Reproduktion.
+
+**„Kann csa26 in eine Pre-Commit-Hook?"**
+Nicht direkt — csa26 ist als GitHub Action konzipiert und braucht
+das Container-Image. Lokal kannst Du sie via `docker run` aus dem
+Image triggern, sobald `ghcr.io/appliedfusa/csa26:v1` für Dich
+zugänglich ist.
+
+**„Wie lese ich die Findings?"**
+Drei Output-Kanäle parallel: Inline-Annotations im PR-Diff,
+Markdown-Tabelle im Action-Job-Summary, SARIF-Datei für den
+Security-Tab (via `actions/upload-sarif` selbst hochzuladen).
+
+**„Mein Code hat 50 Findings — was tun?"**
+Beginne mit Severity `error` und arbeite Dich runter. Die
+`severity-threshold`-Default ist `warning`; auf `error` setzen
+gibt nur die kritischsten zurück. Außerdem: viele Findings sind
+oft mehrfache Vorkommen derselben Pattern-Klasse — fixen einer
+Klasse fixt mehrere Stellen auf einmal.
+
+**„Brauche ich Cppcheck dafür installiert?"**
+Nein. csa26 v1 hat eine eigenständige Engine — Lexer,
+Preprocessor, Parser, Symbol-/Type-System und Rule-Engine sind
+Apache-2.0-IP der Applied FuSa. Cppcheck ist nicht im Stack.
+
+Mehr Fragen → [GitHub Discussions](https://github.com/AppliedFuSa/csa26/discussions).
+
 ## Was csa26 ist und was nicht
 
 **csa26 ist ein Pre-Audit-Werkzeug.** Es findet wahrscheinliche

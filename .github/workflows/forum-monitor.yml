@@ -1,0 +1,105 @@
+name: forum-monitor
+
+# Täglicher Scan, ob csa26 außerhalb der AppliedFuSa-Org irgendwo
+# auf GitHub erwähnt wird (Code, Issues, Discussions, PRs).
+# Findet z.B. wenn ein fremdes Repo `uses: AppliedFuSa/csa26@…`
+# in einem Workflow setzt, oder wenn jemand csa26 in einem Issue
+# zitiert.
+#
+# Treffer landen als Kommentar in einem zentralen "tracking issue"
+# im csa26-Repo selbst — keine externen Webhooks, kein SMTP.
+
+on:
+  schedule:
+    - cron: '23 6 * * *'   # täglich 06:23 UTC
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  contents: read
+
+env:
+  TRACKING_ISSUE_TITLE: 'forum-monitor: external mentions of csa26'
+  SEARCH_TERMS: 'AppliedFuSa/csa26 OR "csa26-engine" OR ghcr.io/appliedfusa/csa26'
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Find or create tracking issue
+        id: tracking
+        run: |
+          set -euo pipefail
+          NUM=$(gh issue list \
+            -R AppliedFuSa/csa26 \
+            --state open \
+            --search "${TRACKING_ISSUE_TITLE} in:title" \
+            --json number \
+            --jq '.[0].number // empty')
+          if [ -z "$NUM" ]; then
+            NUM=$(gh issue create \
+              -R AppliedFuSa/csa26 \
+              --title "${TRACKING_ISSUE_TITLE}" \
+              --label "tracking" \
+              --body "Automatisch geführter Tracker. Jeder erfolgreiche forum-monitor-Run hängt einen Kommentar mit den neuen Treffern an, oder schweigt, wenn nichts neu ist." \
+              | grep -oE '[0-9]+$')
+          fi
+          echo "number=${NUM}" >> "$GITHUB_OUTPUT"
+
+      - name: Search GitHub
+        id: search
+        run: |
+          set -euo pipefail
+          REPORT="$(mktemp)"
+          {
+            printf '## forum-monitor scan — %s\n\n' "$(date -u +"%Y-%m-%d %H:%M UTC")"
+            printf 'Search: `%s`\n\n' "${SEARCH_TERMS}"
+
+            HITS_TOTAL=0
+
+            printf '### Code mentions\n\n'
+            CODE_JSON=$(gh search code "${SEARCH_TERMS}" --limit 30 --json repository,path,url 2>/dev/null || echo '[]')
+            CODE_FILTERED=$(echo "$CODE_JSON" | jq '[.[] | select(.repository.nameWithOwner | startswith("AppliedFuSa/") | not)]')
+            CODE_COUNT=$(echo "$CODE_FILTERED" | jq 'length')
+            HITS_TOTAL=$((HITS_TOTAL + CODE_COUNT))
+            if [ "$CODE_COUNT" = "0" ]; then
+              printf '_No external code mentions._\n\n'
+            else
+              echo "$CODE_FILTERED" | jq -r '.[] | "- [\(.repository.nameWithOwner)/\(.path)](\(.url))"'
+              printf '\n'
+            fi
+
+            printf '### Issues / PRs / Discussions referencing csa26\n\n'
+            ISSUE_JSON=$(gh search issues "${SEARCH_TERMS}" --limit 30 --json repository,title,url,createdAt 2>/dev/null || echo '[]')
+            ISSUE_FILTERED=$(echo "$ISSUE_JSON" | jq '[.[] | select(.repository.nameWithOwner | startswith("AppliedFuSa/") | not)]')
+            ISSUE_COUNT=$(echo "$ISSUE_FILTERED" | jq 'length')
+            HITS_TOTAL=$((HITS_TOTAL + ISSUE_COUNT))
+            if [ "$ISSUE_COUNT" = "0" ]; then
+              printf '_No external issue/PR mentions._\n\n'
+            else
+              echo "$ISSUE_FILTERED" | jq -r '.[] | "- \(.createdAt | .[0:10]) — [\(.repository.nameWithOwner): \(.title)](\(.url))"'
+              printf '\n'
+            fi
+
+            printf '_Total external hits: %d_\n' "$HITS_TOTAL"
+            echo "TOTAL=${HITS_TOTAL}" >> "$GITHUB_OUTPUT"
+          } > "$REPORT"
+
+          cat "$REPORT"
+          {
+            echo "report<<EOF_REPORT"
+            cat "$REPORT"
+            echo "EOF_REPORT"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Comment on tracking issue (only when hits > 0)
+        if: steps.search.outputs.TOTAL != '0'
+        run: |
+          gh issue comment "${{ steps.tracking.outputs.number }}" \
+            -R AppliedFuSa/csa26 \
+            --body "${{ steps.search.outputs.report }}"
+
+      - name: Job summary
+        run: |
+          echo "${{ steps.search.outputs.report }}" >> "$GITHUB_STEP_SUMMARY"
