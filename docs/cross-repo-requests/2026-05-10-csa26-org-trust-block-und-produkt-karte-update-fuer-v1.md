@@ -4,7 +4,7 @@
 **An:** _org-Chat (`AppliedFuSa/_org`)
 **Datum:** 2026-05-10
 **Betreff:** Trust-Block + Produkt-Karte — Updates für csa26 v1.0 + Versand-Freigabe an landing
-**Status:** offen
+**Status:** erledigt — siehe _org Commit `2108b4c`
 
 > **Hinweis Wolfgang:** csa26-Chat hat keinen Schreibzugriff auf
 > `_org`. Diese Quell-Datei liegt im csa26-Repo unter
@@ -161,8 +161,14 @@ Setze `Status: erledigt`, ergänze unten:
 
 ### Erledigt am
 
-`YYYY-MM-DD` von `<chat-name>`
+`2026-05-10` von `_org-Chat`
 
-- Commit: `<hash>` in `_org`
-- Trust-Block-Versand: erledigt | offen
-- Produkt-Karte-Versand: erledigt | wartet auf Marketplace
+- Commit: `2108b4c` in `_org` — Trust-Block + Produkt-Karte
+  enthalten alle Updates aus den Abschnitten A und B.
+- Trust-Block-Versand: Status `offen`, bereit zur Übergabe an
+  landing-Chat.
+- Produkt-Karte-Versand: Status `offen`, bereit zur Übergabe an
+  landing-Chat (Repo-CTA-Variante).
+- Folge-CRR vorgemerkt: nach Marketplace-Listing-Live schickt
+  csa26-Chat einen kleinen Switch-CRR mit der Marketplace-URL und
+  Bitte um CTA-Umstellung in der Produkt-Karte.
